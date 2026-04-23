@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src fonts.gstatic.com; connect-src *; img-src * data:;" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src fonts.gstatic.com; connect-src *; img-src * data:; media-src *;" />
   <title>HouseHill</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -637,7 +637,7 @@
         <div class="header-icon">📄</div>
         <div>
           <div class="header-title">HouseHill</div>
-          <div class="header-subtitle">Version: 20260319</div>
+          <div class="header-subtitle">Version: 0.0.1 (Beta)</div>
         </div>
       </div>
       <nav class="top-nav">
@@ -739,6 +739,11 @@
       d.textContent = s;
       return d.innerHTML;
     }
+
+    const _VALID_SEVERITY = new Set(['low', 'medium', 'high', 'critical']);
+    const _VALID_STATUS   = new Set(['open', 'in-progress', 'resolved']);
+    function safeSeverity(s) { return _VALID_SEVERITY.has(s) ? s : 'medium'; }
+    function safeStatus(s)   { return _VALID_STATUS.has(s)   ? s : 'open'; }
 
     function relativeTime(isoStr) {
       const d = new Date(isoStr);
@@ -1084,9 +1089,9 @@
               </div>
               ${issue.description ? `<div class="issue-card-desc">${escHtml(issue.description.substring(0, 150))}${issue.description.length > 150 ? '...' : ''}</div>` : ''}
               <div class="issue-card-footer">
-                <span class="severity-badge severity-${issue.severity}">${issue.severity}</span>
-                <span class="status-badge status-${issue.status}">${issue.status}</span>
-                ${issue.related_config_key ? `<span class="key-badge clickable" onclick="event.stopPropagation();navigateToConfigKey('${escHtml(issue.related_config_key)}')">${escHtml(issue.related_config_key)}</span>` : ''}
+                <span class="severity-badge severity-${safeSeverity(issue.severity)}">${escHtml(safeSeverity(issue.severity))}</span>
+                <span class="status-badge status-${safeStatus(issue.status)}">${escHtml(safeStatus(issue.status))}</span>
+                ${issue.related_config_key ? `<span class="key-badge clickable" data-config-key="${escHtml(issue.related_config_key)}" onclick="event.stopPropagation();navigateToConfigKey(this.dataset.configKey)">${escHtml(issue.related_config_key)}</span>` : ''}
               </div>
             </div>`;
           });
@@ -1239,9 +1244,9 @@
           <div class="issue-detail-header">
             <div class="issue-detail-title">${escHtml(issue.title)}</div>
             <div class="issue-detail-badges">
-              <span class="severity-badge severity-${issue.severity}">${issue.severity}</span>
-              <span class="status-badge status-${issue.status}">${issue.status}</span>
-              ${issue.related_config_key ? `<span class="key-badge clickable" onclick="navigateToConfigKey('${escHtml(issue.related_config_key)}')">${escHtml(issue.related_config_key)}</span>` : ''}
+              <span class="severity-badge severity-${safeSeverity(issue.severity)}">${escHtml(safeSeverity(issue.severity))}</span>
+              <span class="status-badge status-${safeStatus(issue.status)}">${escHtml(safeStatus(issue.status))}</span>
+              ${issue.related_config_key ? `<span class="key-badge clickable" data-config-key="${escHtml(issue.related_config_key)}" onclick="navigateToConfigKey(this.dataset.configKey)">${escHtml(issue.related_config_key)}</span>` : ''}
             </div>
             <div class="issue-detail-dates">
               Created: ${new Date(issue.created_at).toLocaleString()} &nbsp;|&nbsp; Updated: ${relativeTime(issue.updated_at)}
@@ -1351,7 +1356,7 @@
         } else {
           html += `<div class="article-grid">`;
           articles.forEach(article => {
-            html += `<div class="article-card" onclick="tsView='detail';tsArticleSlug='${escHtml(article.slug)}';renderTsPage()">
+            html += `<div class="article-card" data-slug="${escHtml(article.slug)}" onclick="tsView='detail';tsArticleSlug=this.dataset.slug;renderTsPage()">
               <div class="article-card-title">${escHtml(article.title)}</div>
               <div class="article-card-meta">
                 ${article.category ? `<span class="category-pill">${escHtml(article.category)}</span>` : ''}
@@ -1389,11 +1394,11 @@
             </div>
             ${article.related_config_keys && article.related_config_keys.length > 0 ? `
               <div style="margin-top:8px">
-                ${article.related_config_keys.map(k => `<span class="key-badge clickable" onclick="navigateToConfigKey('${escHtml(k)}')">${escHtml(k)}</span>`).join(' ')}
+                ${article.related_config_keys.map(k => `<span class="key-badge clickable" data-config-key="${escHtml(k)}" onclick="navigateToConfigKey(this.dataset.configKey)">${escHtml(k)}</span>`).join(' ')}
               </div>` : ''}
           </div>
           <div class="section-card" style="padding:24px">
-            <div class="article-body">${sanitize(article.html_body)}</div>
+            <div class="article-body">${sanitize(article.html_body.replace(/\/api\/troubleshooting\/attachments\//g, API_BASE + '/api/troubleshooting/attachments/'))}</div>
           </div>
         `;
 
