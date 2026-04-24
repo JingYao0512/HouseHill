@@ -1198,9 +1198,13 @@
         preview.style.display = 'none';
       } else {
         const text = textarea.value;
-        preview.innerHTML = text.trim()
-          ? renderMarkdown(text)
-          : '<span class="md-empty">Nothing to preview</span>';
+        let html = text.trim() ? renderMarkdown(text) : '<span class="md-empty">Nothing to preview</span>';
+        if (editor.dataset.rewriteAttachments) {
+          const slugEl = document.getElementById('tsSlug');
+          const _slug = tsEditingSlug || (slugEl && slugEl.value.trim()) || '';
+          if (_slug) html = html.replace(/src="attachments\//g, `src="${API_BASE}/api/troubleshooting/attachments/${_slug}/`);
+        }
+        preview.innerHTML = html;
         textarea.style.display = 'none';
         preview.style.display = '';
       }
@@ -1293,6 +1297,7 @@
     let tsActiveCategory = '';
     let tsCategories = [];
     let tsArticleSlug = null;
+    let tsEditingSlug = null;
 
     const $tsTabList = document.getElementById('tsTabList');
     const $tsContent = document.getElementById('tsContent');
@@ -1321,11 +1326,19 @@
         btn.onclick = () => { tsActiveCategory = cat; tsView = 'list'; buildTsSidebar(); renderTsPage(); };
         $tsTabList.appendChild(btn);
       });
+
+      const newBtn = document.createElement('button');
+      newBtn.className = 'tab-btn';
+      newBtn.style.cssText = 'margin-top:12px;color:var(--primary);border-color:var(--primary-border);background:var(--primary-bg)';
+      newBtn.innerHTML = `<span class="tab-icon">✏️</span><span>New Article</span>`;
+      newBtn.onclick = () => { tsEditingSlug = null; tsView = 'editor'; renderTsPage(); };
+      $tsTabList.appendChild(newBtn);
     }
 
     async function renderTsPage() {
       if (tsView === 'list') await renderTsArticleList();
       else if (tsView === 'detail') await renderTsArticleDetail();
+      else if (tsView === 'editor') await renderTsEditor();
     }
 
     async function renderTsArticleList() {
@@ -1385,7 +1398,12 @@
         if (article.error) throw new Error(article.error);
 
         let html = `
-          <button class="back-btn" onclick="tsView='list';tsArticleSlug=null;buildTsSidebar();renderTsPage()">← Back to Articles</button>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+            <button class="back-btn" style="margin-bottom:0" onclick="tsView='list';tsArticleSlug=null;buildTsSidebar();renderTsPage()">← Back</button>
+            <span style="flex:1"></span>
+            <button class="btn btn-sm btn-secondary" onclick="tsEditingSlug=tsArticleSlug;tsView='editor';renderTsPage()">Edit</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteTsArticle(tsArticleSlug)">Delete</button>
+          </div>
           <div class="article-detail-header">
             <div class="article-detail-title">${escHtml(article.title)}</div>
             <div class="article-detail-meta">
@@ -1400,25 +1418,206 @@
           <div class="section-card" style="padding:24px">
             <div class="article-body">${sanitize(article.html_body.replace(/\/api\/troubleshooting\/attachments\//g, API_BASE + '/api/troubleshooting/attachments/'))}</div>
           </div>
+          ${(article.attachments || []).filter(a => !a.is_image).length > 0 ? `
+          <div class="attachment-list">
+            <div class="attachment-list-title">Attachments</div>
+            ${article.attachments.filter(a => !a.is_image).map(a => `
+              <a class="attachment-link"
+                 href="${API_BASE}/api/troubleshooting/attachments/${encodeURIComponent(a.name)}" download>
+                📎 ${escHtml(a.name)} <span style="color:var(--text-muted);font-size:11px">(${a.size_display})</span>
+              </a>`).join('')}
+          </div>` : ''}
         `;
-
-        if (article.attachments && article.attachments.length > 0) {
-          const nonImageAttachments = article.attachments.filter(a => !a.is_image);
-          if (nonImageAttachments.length > 0) {
-            html += `<div class="attachment-list">
-              <div class="attachment-list-title">Attachments</div>
-              ${nonImageAttachments.map(a => `
-                <a class="attachment-link" href="${API_BASE}/api/troubleshooting/attachments/${encodeURIComponent(a.name)}" download>
-                  📎 ${escHtml(a.name)} <span style="color:var(--text-muted);font-size:11px">(${a.size_display})</span>
-                </a>
-              `).join('')}
-            </div>`;
-          }
-        }
 
         $tsContent.innerHTML = html;
       } catch (e) {
         $tsContent.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Article not found</div></div>`;
+      }
+    }
+
+    async function deleteTsArticle(slug) {
+      if (!confirm('Delete this article? This cannot be undone.')) return;
+      try {
+        await apiFetch('/api/troubleshooting/articles/' + slug, { method: 'DELETE' });
+        tsView = 'list'; tsArticleSlug = null;
+        await loadTsCategories();
+        renderTsPage();
+      } catch (e) {
+        alert('Delete failed: ' + e.message);
+      }
+    }
+
+    async function uploadTsAttachment() {
+      const input = document.getElementById('attachmentUploadInput');
+      if (!input || !input.files.length) { alert('Select a file first.'); return; }
+      if (!tsEditingSlug) { alert('Save the article first, then upload attachments.'); return; }
+      const formData = new FormData();
+      formData.append('file', input.files[0]);
+      try {
+        const res = await apiFetch(`/api/troubleshooting/articles/${encodeURIComponent(tsEditingSlug)}/attachments`, { method: 'POST', body: formData });
+        if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Upload failed'); }
+        await renderTsEditor();
+      } catch (e) {
+        alert('Upload failed: ' + e.message);
+      }
+    }
+
+    async function deleteTsAttachment(filename) {
+      if (!confirm(`Delete "${filename}"?`)) return;
+      try {
+        await apiFetch(`/api/troubleshooting/articles/${encodeURIComponent(tsEditingSlug)}/attachments/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+        await renderTsEditor();
+      } catch (e) {
+        alert('Delete failed: ' + e.message);
+      }
+    }
+
+    function insertAttachmentMd(filename) {
+      const textarea = document.getElementById('tsBodyTextarea');
+      if (!textarea) return;
+      const ext = filename.split('.').pop().toLowerCase();
+      const isImg = ['png','jpg','jpeg','gif','bmp','svg','webp'].includes(ext);
+      const md = isImg ? `![${filename}](attachments/${filename})` : `[${filename}](attachments/${filename})`;
+      const start = textarea.selectionStart;
+      textarea.value = textarea.value.slice(0, start) + md + textarea.value.slice(textarea.selectionEnd);
+      textarea.selectionStart = textarea.selectionEnd = start + md.length;
+      textarea.focus();
+    }
+
+    async function renderTsEditor() {
+      let article = null;
+      if (tsEditingSlug) {
+        try {
+          article = await apiFetch('/api/troubleshooting/articles/' + tsEditingSlug).then(r => r.json());
+        } catch (e) {
+          $tsContent.innerHTML = `<div class="empty-state"><div class="empty-state-title">Failed to load article</div></div>`;
+          return;
+        }
+      }
+
+      const isNew = !tsEditingSlug;
+      const cats = tsCategories.map(c => `<option value="${escHtml(c)}">`).join('');
+
+      $tsContent.innerHTML = `
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+          <button class="back-btn" style="margin-bottom:0" onclick="${isNew ? "tsView='list'" : "tsView='detail'"};renderTsPage()">← Cancel</button>
+          <span style="font-size:16px;font-weight:700;color:var(--text)">${isNew ? 'New Article' : 'Edit Article'}</span>
+        </div>
+        <div class="section-card" style="max-width:760px">
+          <div style="padding:24px">
+            <form id="tsArticleForm" onsubmit="submitTsArticle(event)">
+              <div style="display:flex;gap:16px;flex-wrap:wrap">
+                <div class="form-group" style="flex:1;min-width:200px">
+                  <label class="form-label">Title *</label>
+                  <input class="form-input" id="tsTitle" required placeholder="Article title"
+                    value="${article ? escHtml(article.title) : ''}"
+                    oninput="${isNew ? "document.getElementById('tsSlug').value=this.value.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')" : ''}" />
+                </div>
+                <div class="form-group" style="flex:1;min-width:200px">
+                  <label class="form-label">Slug * <span style="font-weight:400;color:var(--text-muted)">(URL identifier)</span></label>
+                  <input class="form-input" id="tsSlug" required placeholder="my-article-slug"
+                    style="font-family:'JetBrains Mono',monospace${!isNew ? ';opacity:0.6' : ''}"
+                    value="${article ? escHtml(article.slug) : ''}"
+                    ${!isNew ? 'readonly' : ''} />
+                </div>
+              </div>
+              <div style="display:flex;gap:16px;flex-wrap:wrap">
+                <div class="form-group" style="flex:1;min-width:200px">
+                  <label class="form-label">Category</label>
+                  <input class="form-input" id="tsCategory" list="tsCategoryList" placeholder="e.g. Network"
+                    value="${article ? escHtml(article.category) : ''}" />
+                  <datalist id="tsCategoryList">${cats}</datalist>
+                </div>
+                <div class="form-group" style="flex:1;min-width:200px">
+                  <label class="form-label">Tags <span style="font-weight:400;color:var(--text-muted)">(comma-separated)</span></label>
+                  <input class="form-input" id="tsTags" placeholder="DICOM, Network, Timeout"
+                    value="${article ? escHtml((article.tags || []).join(', ')) : ''}" />
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Related Config Keys <span style="font-weight:400;color:var(--text-muted)">(comma-separated)</span></label>
+                <input class="form-input" id="tsRelatedKeys" placeholder="ConnectionTimeout, RetryCount"
+                  value="${article ? escHtml((article.related_config_keys || []).join(', ')) : ''}" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Content <span style="font-weight:400;color:var(--text-muted)">(Markdown)</span></label>
+                <div class="md-editor" data-rewrite-attachments="1">
+                  <div class="md-editor-tabs">
+                    <button type="button" class="md-editor-tab active" onclick="switchEditorTab(this,'write')">Write</button>
+                    <button type="button" class="md-editor-tab" onclick="switchEditorTab(this,'preview')">Preview</button>
+                  </div>
+                  <textarea class="form-textarea" id="tsBodyTextarea" style="min-height:300px"
+                    placeholder="## Symptoms&#10;&#10;Describe the problem...&#10;&#10;## Resolution&#10;&#10;Steps to fix...">${article ? escHtml(article.raw_body || '') : ''}</textarea>
+                  <div class="md-preview" id="tsBodyPreview" style="display:none;min-height:300px;padding:16px"></div>
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;justify-content:flex-end">
+                <button type="button" class="btn btn-secondary" onclick="${isNew ? "tsView='list'" : "tsView='detail'"};renderTsPage()">Cancel</button>
+                <button type="submit" class="btn btn-primary">${isNew ? 'Create Article' : 'Save Changes'}</button>
+              </div>
+            </form>
+
+            <div class="attachment-list" style="margin-top:28px;border-top:1px solid var(--border);padding-top:20px">
+              <div class="attachment-list-title">Attachments</div>
+              <div id="tsAttachmentList">
+                ${(article && (article.attachments || []).length > 0)
+                  ? article.attachments.map(a => `
+                      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                        <span style="flex:1;font-size:13px">📎 ${escHtml(a.name)} <span style="color:var(--text-muted)">(${a.size_display})</span></span>
+                        <button class="btn btn-sm btn-secondary" style="font-size:11px" data-filename="${escHtml(a.name)}"
+                          onclick="insertAttachmentMd(this.dataset.filename)">Insert</button>
+                        <button class="btn btn-sm btn-danger" style="font-size:11px" data-filename="${escHtml(a.name)}"
+                          onclick="deleteTsAttachment(this.dataset.filename)">Delete</button>
+                      </div>`).join('')
+                  : '<div style="color:var(--text-muted);font-size:13px;margin-bottom:8px">No attachments yet.</div>'}
+              </div>
+              <div style="margin-top:10px;display:flex;align-items:center;gap:8px">
+                <input type="file" id="attachmentUploadInput" style="flex:1;font-size:13px" />
+                <button class="btn btn-sm btn-primary" onclick="uploadTsAttachment()">Upload</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Keep live preview in sync with attachment path rewriting
+      document.getElementById('tsBodyTextarea').addEventListener('input', () => {
+        const preview = document.getElementById('tsBodyPreview');
+        if (preview.style.display !== 'none') {
+          let html = renderMarkdown(document.getElementById('tsBodyTextarea').value);
+          const slugEl = document.getElementById('tsSlug');
+          const _slug = tsEditingSlug || (slugEl && slugEl.value.trim()) || '';
+          if (_slug) html = html.replace(/src="attachments\//g, `src="${API_BASE}/api/troubleshooting/attachments/${_slug}/`);
+          preview.innerHTML = html;
+        }
+      });
+    }
+
+    async function submitTsArticle(e) {
+      e.preventDefault();
+      const isNew = !tsEditingSlug;
+      const slug = document.getElementById('tsSlug').value.trim();
+      const payload = {
+        slug,
+        title: document.getElementById('tsTitle').value.trim(),
+        category: document.getElementById('tsCategory').value.trim(),
+        tags: document.getElementById('tsTags').value.split(',').map(t => t.trim()).filter(Boolean),
+        related_config_keys: document.getElementById('tsRelatedKeys').value.split(',').map(k => k.trim()).filter(Boolean),
+        body: document.getElementById('tsBodyTextarea').value,
+      };
+      try {
+        const res = await apiFetch(
+          isNew ? '/api/troubleshooting/articles' : '/api/troubleshooting/articles/' + slug,
+          { method: isNew ? 'POST' : 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }
+        );
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Save failed');
+        tsArticleSlug = data.slug;
+        tsView = 'detail';
+        await loadTsCategories();
+        renderTsPage();
+      } catch (e) {
+        alert('Save failed: ' + e.message);
       }
     }
 
