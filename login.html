@@ -33,7 +33,7 @@
 
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      background: var(--header-bg);
+      background: var(--header-bg) url('background.jpg') center/cover no-repeat fixed;
       min-height: 100vh;
       display: flex;
       align-items: center;
@@ -45,8 +45,9 @@
       content: '';
       position: fixed; inset: 0;
       background:
-        radial-gradient(ellipse at 20% 50%, rgba(59,130,246,0.08) 0%, transparent 60%),
-        radial-gradient(ellipse at 80% 20%, rgba(124,58,237,0.06) 0%, transparent 50%);
+        linear-gradient(135deg, rgba(15,23,42,0.72) 0%, rgba(15,23,42,0.55) 100%),
+        radial-gradient(ellipse at 20% 50%, rgba(59,130,246,0.10) 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 20%, rgba(124,58,237,0.08) 0%, transparent 50%);
       pointer-events: none;
     }
 
@@ -131,7 +132,7 @@
 <body>
   <div class="login-card">
     <div class="login-header">
-      <div class="login-logo">📄</div>
+      <div class="login-logo">📖</div>
       <div class="login-title">HouseHill</div>
       <div class="login-subtitle">Sign in to continue</div>
     </div>

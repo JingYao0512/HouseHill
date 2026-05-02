@@ -7,6 +7,11 @@
   <title>HouseHill</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script>
+    (function () {
+      try { document.documentElement.dataset.theme = localStorage.getItem('hh-theme') || 'light'; } catch (e) {}
+    })();
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
   <style>
@@ -43,6 +48,43 @@
       --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
       --radius: 12px;
       --radius-sm: 8px;
+      --tip-text: #92400e;
+      --scrollbar-thumb: #cbd5e1;
+      --scrollbar-thumb-hover: #94a3b8;
+    }
+
+    [data-theme="dark"] {
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --border: #334155;
+      --border-light: #1e293b;
+      --text: #f1f5f9;
+      --text-secondary: #cbd5e1;
+      --text-muted: #94a3b8;
+      --primary: #60a5fa;
+      --primary-bg: rgba(59,130,246,0.15);
+      --primary-border: rgba(59,130,246,0.4);
+      --primary-dark: #93c5fd;
+      --header-bg: #020617;
+      --header-secondary: #0f172a;
+      --green: #4ade80;
+      --green-bg: rgba(22,163,74,0.18);
+      --green-border: rgba(22,163,74,0.4);
+      --red: #f87171;
+      --red-bg: rgba(239,68,68,0.18);
+      --red-border: rgba(239,68,68,0.4);
+      --amber: #fbbf24;
+      --amber-bg: rgba(217,119,6,0.18);
+      --amber-border: rgba(217,119,6,0.4);
+      --purple: #a78bfa;
+      --purple-bg: rgba(124,58,237,0.18);
+      --purple-border: rgba(124,58,237,0.4);
+      --shadow-sm: 0 1px 2px 0 rgba(0,0,0,0.4);
+      --shadow: 0 1px 3px 0 rgba(0,0,0,0.5), 0 1px 2px -1px rgba(0,0,0,0.5);
+      --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.6), 0 2px 4px -2px rgba(0,0,0,0.6);
+      --tip-text: #fde68a;
+      --scrollbar-thumb: #475569;
+      --scrollbar-thumb-hover: #64748b;
     }
 
     body {
@@ -118,6 +160,13 @@
       transition: all 0.15s; cursor: pointer; background: none; border: none;
     }
     .logout-btn:hover { background: rgba(239,68,68,0.15); color: #f87171; }
+    .theme-toggle {
+      display: flex; align-items: center; justify-content: center;
+      width: 28px; height: 28px; border-radius: 6px;
+      color: #94a3b8; background: none; border: none;
+      font-size: 15px; cursor: pointer; transition: all 0.15s;
+    }
+    .theme-toggle:hover { background: rgba(255,255,255,0.08); color: white; }
     .search-wrap { position: relative; }
     .search-wrap input {
       background: var(--header-secondary);
@@ -167,6 +216,12 @@
       padding: 0 8px; margin-bottom: 12px;
     }
     .tab-list { display: flex; flex-direction: column; gap: 2px; }
+    .sidebar-empty {
+      padding: 16px 12px;
+      font-size: 12px;
+      color: var(--text-muted);
+      text-align: center;
+    }
     .tab-btn {
       display: flex; align-items: center; gap: 10px;
       padding: 10px 12px;
@@ -210,7 +265,7 @@
       font-weight: 700; text-transform: uppercase;
       margin-bottom: 8px;
     }
-    .tip-box p { font-size: 12px; color: #92400e; line-height: 1.6; }
+    .tip-box p { font-size: 12px; color: var(--tip-text); line-height: 1.6; }
 
     /* ── Main Content ── */
     main.content {
@@ -246,7 +301,7 @@
       margin-bottom: 20px;
     }
     .section-header {
-      background: #f8fafc;
+      background: var(--bg);
       border-bottom: 1px solid var(--border);
       padding: 12px 20px;
       display: flex; align-items: center; gap: 8px;
@@ -327,7 +382,7 @@
     .no-results {
       text-align: center; padding: 60px 20px; color: var(--text-muted);
     }
-    .no-results svg { width: 40px; height: 40px; margin: 0 auto 12px; color: #cbd5e1; }
+    .no-results svg { width: 40px; height: 40px; margin: 0 auto 12px; color: var(--text-muted); }
 
     /* ── Issues Styles ── */
     .stats-grid {
@@ -471,6 +526,99 @@
     .btn-danger { background: var(--red); color: white; }
     .btn-danger:hover { background: #dc2626; }
     .btn-sm { padding: 5px 12px; font-size: 12px; }
+
+    /* ── User Dropdown ── */
+    .user-menu-wrap { position: relative; }
+    .user-menu-btn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 4px 8px 4px 4px; border-radius: 20px;
+      background: none; border: 1px solid transparent;
+      cursor: pointer; transition: all 0.15s;
+      color: #94a3b8;
+    }
+    .user-menu-btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.1); }
+    .user-menu-btn .caret { font-size: 10px; color: #94a3b8; }
+    .user-dropdown {
+      position: absolute; top: calc(100% + 6px); right: 0;
+      min-width: 200px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); box-shadow: var(--shadow-md);
+      padding: 6px; z-index: 100;
+      display: none;
+    }
+    .user-dropdown.open { display: block; }
+    .user-dropdown button {
+      display: flex; align-items: center; gap: 10px;
+      width: 100%; padding: 9px 12px; border-radius: 6px;
+      background: none; border: none; cursor: pointer;
+      font-size: 13px; font-family: inherit;
+      color: var(--text); text-align: left;
+    }
+    .user-dropdown button:hover { background: var(--bg); }
+    .user-dropdown button.danger { color: var(--red); }
+    .user-dropdown button.danger:hover { background: var(--red-bg); }
+    .user-dropdown .divider {
+      height: 1px; background: var(--border); margin: 4px 0;
+    }
+
+    /* ── Modal ── */
+    .modal-backdrop {
+      position: fixed; inset: 0;
+      background: rgba(15, 23, 42, 0.55);
+      display: none; align-items: center; justify-content: center;
+      z-index: 200; padding: 24px;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); box-shadow: var(--shadow-md);
+      width: 100%; max-width: 460px; max-height: calc(100vh - 48px);
+      overflow: hidden; display: flex; flex-direction: column;
+    }
+    .modal-card.wide { max-width: 640px; }
+    .modal-header {
+      padding: 16px 20px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 15px; font-weight: 700; color: var(--text);
+    }
+    .modal-close {
+      background: none; border: none; cursor: pointer;
+      font-size: 22px; line-height: 1; color: var(--text-muted);
+      padding: 0 4px;
+    }
+    .modal-close:hover { color: var(--text); }
+    .modal-body { padding: 20px; overflow-y: auto; }
+    .modal-footer {
+      display: flex; justify-content: flex-end; gap: 8px;
+      margin-top: 16px;
+    }
+    .modal-error {
+      background: var(--red-bg); border: 1px solid var(--red-border);
+      border-radius: var(--radius-sm); padding: 8px 12px;
+      font-size: 13px; color: var(--red);
+      margin-bottom: 12px;
+    }
+    .modal-success {
+      background: var(--green-bg); border: 1px solid var(--green-border);
+      border-radius: var(--radius-sm); padding: 8px 12px;
+      font-size: 13px; color: var(--green);
+      margin-bottom: 12px;
+    }
+    .user-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 12px; border: 1px solid var(--border);
+      border-radius: var(--radius-sm); margin-bottom: 8px;
+      background: var(--bg);
+    }
+    .user-row .name {
+      flex: 1; font-family: 'JetBrains Mono', monospace; font-size: 13px;
+      color: var(--text);
+    }
+    .user-row .you-badge {
+      font-size: 10px; padding: 2px 6px; border-radius: 4px;
+      background: var(--primary-bg); color: var(--primary-dark);
+      font-weight: 600;
+    }
 
     /* ── Issue Detail ── */
     .issue-detail-header { margin-bottom: 24px; }
@@ -624,8 +772,201 @@
     /* Scrollbar */
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
+
+    /* ── Drawer (base — desktop hides toggle and drawer) ── */
+    .drawer-toggle {
+      display: none;
+      width: 40px; height: 40px;
+      align-items: center; justify-content: center;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      color: white; font-size: 20px;
+      cursor: pointer; padding: 0; flex-shrink: 0;
+    }
+    .drawer-toggle:hover { background: rgba(255,255,255,0.12); }
+    .drawer {
+      position: fixed; inset: 0;
+      z-index: 100;
+      visibility: hidden; pointer-events: none;
+    }
+    .drawer.open { visibility: visible; pointer-events: auto; }
+    .drawer-backdrop {
+      position: absolute; inset: 0;
+      background: rgba(0,0,0,0.5);
+      opacity: 0; transition: opacity 0.2s;
+    }
+    .drawer.open .drawer-backdrop { opacity: 1; }
+    .drawer-panel {
+      position: absolute; top: 0; bottom: 0; left: 0;
+      width: 280px; max-width: 85vw;
+      background: var(--surface);
+      box-shadow: var(--shadow-md);
+      transform: translateX(-100%);
+      transition: transform 0.22s ease-out;
+      overflow-y: auto;
+      padding: 18px 14px;
+    }
+    .drawer.open .drawer-panel { transform: translateX(0); }
+    .drawer-section + .drawer-section {
+      margin-top: 20px; padding-top: 18px;
+      border-top: 1px solid var(--border);
+    }
+    .drawer-label {
+      font-size: 11px; font-weight: 700; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 1px;
+      padding: 0 6px; margin-bottom: 10px;
+    }
+    .drawer-pages { display: flex; flex-direction: column; gap: 2px; }
+    .drawer-page-btn {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 12px;
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      color: var(--text); text-decoration: none;
+      font-size: 15px; font-weight: 600;
+    }
+    .drawer-page-btn:hover { background: var(--bg); }
+    .drawer-page-btn.active {
+      background: var(--primary-bg);
+      color: var(--primary-dark);
+      border-color: var(--primary-border);
+    }
+    body.drawer-open { overflow: hidden; }
+
+    /* Sticky mobile search bar (hidden on desktop) */
+    .mobile-search-bar { display: none; }
+
+    /* ══════════════════════════════════════════════ */
+    /* ══         Mobile (<= 768px)                ══ */
+    /* ══════════════════════════════════════════════ */
+    @media (max-width: 768px) {
+      /* Body becomes natural-scroll instead of fixed-viewport */
+      body { height: auto; overflow: visible; }
+
+      /* Header collapses to single compact row; subtitle + top-nav + desktop search hidden */
+      header { padding: 10px 12px; }
+      .header-inner { gap: 8px; flex-wrap: nowrap; }
+      .header-subtitle { display: none; }
+      .header-icon { width: 36px; height: 36px; font-size: 18px; }
+      .header-title { font-size: 16px; }
+      .top-nav { display: none; }
+      .header-right .search-wrap { display: none; }
+      .user-name { display: none; }
+      .user-menu-btn .caret { display: none; }
+      .drawer-toggle { display: flex; }
+
+      /* Sticky search just below the header; survives scroll-away of header */
+      .mobile-search-bar {
+        display: flex; align-items: center; gap: 8px;
+        position: sticky; top: 0; z-index: 8;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        padding: 10px 14px;
+      }
+      .mobile-search-bar svg { width: 16px; height: 16px; color: var(--text-muted); flex-shrink: 0; }
+      .mobile-search-bar input {
+        flex: 1; border: none; outline: none; background: transparent;
+        font-size: 16px; /* prevent iOS zoom */
+        color: var(--text); font-family: inherit;
+      }
+
+      /* Hide desktop sidebars (drawer takes over) */
+      nav.sidebar { display: none; }
+
+      /* Page container + layout reflow to natural scroll */
+      .page-container { display: none; flex: none; overflow: visible; }
+      .page-container.active { display: block; flex: none; }
+      .layout { display: block; max-width: 100%; overflow: visible; }
+      main.content { padding: 14px 14px 80px; overflow: visible; }
+
+      /* Force 16px on inputs to prevent iOS focus zoom */
+      input, select, textarea { font-size: 16px; }
+      .form-input, .form-select, .form-textarea { font-size: 16px; }
+
+      /* ── Card layout for data tables only (.data-table scope) ── */
+      .data-table table,
+      .data-table thead,
+      .data-table tbody,
+      .data-table tr,
+      .data-table td { display: block; width: 100%; }
+      .data-table thead { display: none; }
+      .data-table tr {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        margin-bottom: 10px;
+        padding: 10px 12px;
+      }
+      .data-table tr:hover { background: var(--surface); }
+      .data-table td {
+        padding: 6px 0;
+        border: none;
+        display: flex; gap: 10px;
+        font-size: 14px;
+      }
+      .data-table td::before {
+        content: attr(data-label);
+        flex: 0 0 92px;
+        font-size: 11px; font-weight: 700;
+        text-transform: uppercase; color: var(--text-muted);
+        padding-top: 2px;
+      }
+      .data-table td:not([data-label])::before { display: none; }
+
+      /* Markdown article tables stay scrollable (don't card-transform) */
+      .article-body table { display: block; overflow-x: auto; max-width: 100%; }
+      .md-preview table { display: block; overflow-x: auto; max-width: 100%; }
+
+      /* Article body: code blocks scroll, inline code wraps long paths */
+      .article-body pre, .md-preview pre, .rn-body pre { overflow-x: auto; }
+      .article-body code, .md-preview code, .rn-body code { word-break: break-all; }
+
+      /* Section card padding tighter on mobile */
+      .section-card { margin-bottom: 14px; }
+      .section-header { padding: 10px 14px; }
+      .breadcrumb { margin-bottom: 14px; }
+      .breadcrumb .current { font-size: 16px; }
+
+      /* Issue cards & article cards: full-width single column */
+      .article-grid { grid-template-columns: 1fr; gap: 12px; }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+      .stat-card { padding: 16px; }
+      .stat-value { font-size: 28px; }
+
+      /* Filter bar: wraps and chips a bit larger for tap */
+      .filter-bar { gap: 6px; }
+      .filter-chip { padding: 7px 14px; font-size: 13px; }
+
+      /* Issue Create form: single column, sticky-bottom Submit */
+      .section-card[style*="max-width:640px"] { max-width: 100% !important; }
+      .form-row-mobile-stack { flex-direction: column; gap: 0 !important; }
+      .form-actions-mobile {
+        position: sticky; bottom: 0;
+        margin: 16px -14px 0;
+        padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
+        background: var(--surface);
+        border-top: 1px solid var(--border);
+        display: flex; flex-direction: column; gap: 8px; align-items: stretch;
+        justify-content: flex-start;
+        z-index: 5;
+      }
+      .form-actions-mobile .btn-primary { width: 100%; padding: 14px; font-size: 16px; }
+      .form-actions-mobile .btn-secondary {
+        background: none; border: none; color: var(--text-muted);
+        text-align: center; padding: 6px; font-size: 14px;
+      }
+      .form-actions-mobile .btn-secondary:hover { background: none; color: var(--text); }
+      .md-editor .form-textarea { min-height: 120px; }
+
+      /* Hide write-action UI that doesn't make sense on phones */
+      .desktop-only { display: none !important; }
+
+      /* Tighter modal on small screens */
+      .modal-card { width: 92vw; max-width: 92vw; }
+    }
   </style>
 </head>
 <body>
@@ -633,8 +974,9 @@
   <!-- Header -->
   <header>
     <div class="header-inner">
+      <button class="drawer-toggle" id="drawerToggle" type="button" aria-label="Open menu">☰</button>
       <div class="header-title-group">
-        <div class="header-icon">📄</div>
+        <div class="header-icon">📖</div>
         <div>
           <div class="header-title">HouseHill</div>
           <div class="header-subtitle">Version: 0.0.1 (Beta)</div>
@@ -652,13 +994,50 @@
           <input id="searchInput" type="text" placeholder="搜尋參數或說明..." />
         </div>
         <div class="user-info">
-          <span class="user-avatar" id="userAvatar"></span>
-          <span class="user-name" id="userName"></span>
-          <button class="logout-btn" id="logoutBtn" title="Sign out">⏻</button>
+          <button class="theme-toggle" id="themeToggle" title="Toggle theme">🌙</button>
+          <div class="user-menu-wrap">
+            <button class="user-menu-btn" id="userMenuBtn" type="button">
+              <span class="user-avatar" id="userAvatar"></span>
+              <span class="user-name" id="userName"></span>
+              <span class="caret">▾</span>
+            </button>
+            <div class="user-dropdown" id="userDropdown">
+              <button type="button" onclick="openChangePasswordModal()">🔑 Change Password</button>
+              <button type="button" class="desktop-only" onclick="openManageUsersModal()">👥 Manage Users</button>
+              <div class="divider"></div>
+              <button type="button" class="danger" id="logoutBtn">⏻ Sign out</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </header>
+
+  <!-- Sticky search bar (mobile only) -->
+  <div class="mobile-search-bar" id="mobileSearchBar">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+    <input id="mobileSearchInput" type="text" placeholder="搜尋..." />
+  </div>
+
+  <!-- Mobile Drawer -->
+  <div class="drawer" id="drawer" aria-hidden="true">
+    <div class="drawer-backdrop" id="drawerBackdrop"></div>
+    <aside class="drawer-panel">
+      <div class="drawer-section">
+        <div class="drawer-label">Pages</div>
+        <nav class="drawer-pages">
+          <a class="drawer-page-btn" href="#config" data-page="config">⚙️ Configuration</a>
+          <a class="drawer-page-btn" href="#issues" data-page="issues">📋 Issues</a>
+          <a class="drawer-page-btn" href="#troubleshooting" data-page="troubleshooting">🔧 Troubleshooting</a>
+          <a class="drawer-page-btn" href="#release-notes" data-page="release-notes">📦 Release Notes</a>
+        </nav>
+      </div>
+      <div class="drawer-section">
+        <div class="drawer-label" id="drawerSidebarLabel"></div>
+        <div id="drawerSidebarSlot"></div>
+      </div>
+    </aside>
+  </div>
 
   <!-- ============ PAGE: Configuration ============ -->
   <div id="page-config" class="page-container active">
@@ -718,6 +1097,94 @@
     </div>
   </div>
 
+  <!-- Change Password Modal -->
+  <div class="modal-backdrop" id="changePasswordModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <span>Change Password</span>
+        <button type="button" class="modal-close" onclick="closeModal('changePasswordModal')">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-error" id="cpError" style="display:none"></div>
+        <div class="modal-success" id="cpSuccess" style="display:none"></div>
+        <form id="changePasswordForm" onsubmit="submitChangePassword(event)">
+          <div class="form-group">
+            <label class="form-label" for="cpCurrent">Current password</label>
+            <input class="form-input" type="password" id="cpCurrent" required autocomplete="current-password" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="cpNew">New password <span style="font-weight:400;color:var(--text-muted)">(min 8 chars)</span></label>
+            <input class="form-input" type="password" id="cpNew" required minlength="8" autocomplete="new-password" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="cpConfirm">Confirm new password</label>
+            <input class="form-input" type="password" id="cpConfirm" required minlength="8" autocomplete="new-password" />
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('changePasswordModal')">Cancel</button>
+            <button type="submit" class="btn btn-primary">Change Password</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Manage Users Modal -->
+  <div class="modal-backdrop" id="manageUsersModal">
+    <div class="modal-card wide">
+      <div class="modal-header">
+        <span>Manage Users</span>
+        <button type="button" class="modal-close" onclick="closeModal('manageUsersModal')">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-error" id="muError" style="display:none"></div>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">All users have full access. Pick passwords carefully.</div>
+        <div id="userListContainer" style="margin-bottom:18px"></div>
+        <div style="border-top:1px solid var(--border);padding-top:16px">
+          <div style="font-size:14px;font-weight:600;margin-bottom:10px">Add New User</div>
+          <form id="newUserForm" onsubmit="submitNewUser(event)">
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <div class="form-group" style="flex:1;min-width:160px;margin-bottom:0">
+                <input class="form-input" id="newUsername" placeholder="username (3-32 chars)" required pattern="[A-Za-z0-9_-]{3,32}" style="font-family:'JetBrains Mono',monospace" />
+              </div>
+              <div class="form-group" style="flex:1;min-width:160px;margin-bottom:0">
+                <input class="form-input" type="password" id="newPassword" placeholder="password (min 8 chars)" required minlength="8" autocomplete="new-password" />
+              </div>
+              <button type="submit" class="btn btn-primary">Create</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reset Password Modal -->
+  <div class="modal-backdrop" id="resetPasswordModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <span>Reset Password</span>
+        <button type="button" class="modal-close" onclick="closeModal('resetPasswordModal')">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-error" id="rpError" style="display:none"></div>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">
+          Setting a new password for <strong id="rpUsername" style="font-family:'JetBrains Mono',monospace"></strong>.
+          The user will need to use this new password on their next login.
+        </div>
+        <form id="resetPasswordForm" onsubmit="submitResetPassword(event)">
+          <div class="form-group">
+            <label class="form-label" for="rpNew">New password <span style="font-weight:400;color:var(--text-muted)">(min 8 chars)</span></label>
+            <input class="form-input" type="password" id="rpNew" required minlength="8" autocomplete="new-password" />
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('resetPasswordModal')">Cancel</button>
+            <button type="submit" class="btn btn-primary">Set Password</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <script src="config.js"></script>
   <script src="auth.js"></script>
   <script>
@@ -772,14 +1239,91 @@
     const SEARCH_PLACEHOLDERS = {
       config: '搜尋參數或說明...',
       issues: '搜尋 Issues...',
-      troubleshooting: '搜尋文章...'
+      troubleshooting: '搜尋文章...',
+      'release-notes': '搜尋 Release Notes...'
     };
+
+    // ── Mobile Drawer ──
+    const $drawer = document.getElementById('drawer');
+    const $drawerBackdrop = document.getElementById('drawerBackdrop');
+    const $drawerToggle = document.getElementById('drawerToggle');
+    const $drawerSidebarSlot = document.getElementById('drawerSidebarSlot');
+    const $drawerSidebarLabel = document.getElementById('drawerSidebarLabel');
+
+    function openDrawer() {
+      const activeSidebar = document.querySelector('.page-container.active .sidebar');
+      $drawerSidebarSlot.innerHTML = '';
+      if (activeSidebar) {
+        const labelEl = activeSidebar.querySelector('.sidebar-label');
+        $drawerSidebarLabel.textContent = labelEl ? labelEl.textContent : '';
+        Array.from(activeSidebar.children).forEach(child => {
+          if (child.classList && child.classList.contains('sidebar-label')) return;
+          const cloned = child.cloneNode(true);
+          cloned.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+          if (cloned.id) cloned.removeAttribute('id');
+          $drawerSidebarSlot.appendChild(cloned);
+        });
+      } else {
+        $drawerSidebarLabel.textContent = '';
+      }
+      $drawer.querySelectorAll('.drawer-page-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.page === activePage);
+      });
+      $drawer.classList.add('open');
+      $drawer.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('drawer-open');
+    }
+
+    function closeDrawer() {
+      $drawer.classList.remove('open');
+      $drawer.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('drawer-open');
+    }
+
+    $drawerToggle.addEventListener('click', () => {
+      $drawer.classList.contains('open') ? closeDrawer() : openDrawer();
+    });
+    $drawerBackdrop.addEventListener('click', closeDrawer);
+
+    // Cloned sidebar buttons lose their .onclick handlers — proxy clicks to originals by index.
+    $drawerSidebarSlot.addEventListener('click', (e) => {
+      const btn = e.target.closest('.tab-btn');
+      if (!btn) return;
+      const cloned = Array.from($drawerSidebarSlot.querySelectorAll('.tab-btn'));
+      const idx = cloned.indexOf(btn);
+      const activeSidebar = document.querySelector('.page-container.active .sidebar');
+      const originals = activeSidebar ? Array.from(activeSidebar.querySelectorAll('.tab-btn')) : [];
+      if (idx >= 0 && originals[idx]) originals[idx].click();
+      closeDrawer();
+    });
+
+    // Drawer page-switcher buttons
+    $drawer.querySelectorAll('.drawer-page-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.preventDefault();
+        const target = '#' + btn.dataset.page;
+        if (window.location.hash === target) {
+          closeDrawer();
+        } else {
+          window.location.hash = target;
+        }
+      });
+    });
+
+    // Parse hash like "#config", "#issues/abc-123", "#troubleshooting/my-slug"
+    function parseHash() {
+      const raw = (window.location.hash || '#config').substring(1);
+      const [page, ...rest] = raw.split('/');
+      return { page: page || 'config', detail: rest.join('/') || '' };
+    }
 
     function switchPage(page, updateHash = true) {
       activePage = page;
       searchQuery = '';
       $search.value = '';
       $search.placeholder = SEARCH_PLACEHOLDERS[page] || '';
+      const ms = document.getElementById('mobileSearchInput');
+      if (ms) { ms.value = ''; ms.placeholder = SEARCH_PLACEHOLDERS[page] || '搜尋...'; }
 
       document.querySelectorAll('.page-container').forEach(el => {
         const isActive = el.id === 'page-' + page;
@@ -800,25 +1344,240 @@
       else if (page === 'release-notes') { loadRnPage(); }
     }
 
+    // Top-level hash router: dispatches to switchPage + opens detail views
+    function route() {
+      const { page, detail } = parseHash();
+
+      if (page === 'issues' && detail) {
+        if (activePage !== 'issues') switchPage('issues', false);
+        issueDetailId = detail;
+        issueView = 'detail';
+        buildIssueSidebar();
+        renderIssuesPage();
+        closeDrawer();
+        return;
+      }
+      if (page === 'troubleshooting' && detail) {
+        if (activePage !== 'troubleshooting') switchPage('troubleshooting', false);
+        tsArticleSlug = detail;
+        tsView = 'detail';
+        renderTsPage();
+        closeDrawer();
+        return;
+      }
+
+      // No detail — reset detail state for that page
+      if (page === 'issues') { issueView = (issueView === 'detail') ? 'list' : issueView; issueDetailId = null; }
+      if (page === 'troubleshooting') { tsView = (tsView === 'detail' || tsView === 'editor') ? 'list' : tsView; tsArticleSlug = null; }
+
+      switchPage(page, false);
+      closeDrawer();
+    }
+
+    // Navigation helpers — set hash, hashchange listener drives the actual transition
+    function navigateToIssue(id) { window.location.hash = '#issues/' + encodeURIComponent(id); }
+    function navigateToArticle(slug) { window.location.hash = '#troubleshooting/' + encodeURIComponent(slug); }
+
     // Intercept nav link clicks
     document.querySelectorAll('.top-nav-btn').forEach(btn => {
       btn.addEventListener('click', e => {
         e.preventDefault();
-        switchPage(btn.dataset.page);
+        window.location.hash = '#' + btn.dataset.page;
       });
     });
 
     // Handle browser back/forward (hash change)
-    window.addEventListener('hashchange', () => {
-      const page = (window.location.hash || '#config').substring(1) || 'config';
-      switchPage(page, false);
+    window.addEventListener('hashchange', route);
+
+    // User dropdown menu
+    const userMenuBtn = document.getElementById('userMenuBtn');
+    const userDropdown = document.getElementById('userDropdown');
+    userMenuBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      userDropdown.classList.toggle('open');
+    });
+    document.addEventListener('click', (e) => {
+      if (!userMenuBtn.contains(e.target) && !userDropdown.contains(e.target)) {
+        userDropdown.classList.remove('open');
+      }
     });
 
-    // Logout
+    // Logout (now inside dropdown)
     document.getElementById('logoutBtn').addEventListener('click', () => {
       clearToken();
       window.location.href = 'login.html';
     });
+
+    // ── Modal helpers ──
+    function openModal(id) {
+      document.getElementById(id).classList.add('open');
+      userDropdown.classList.remove('open');
+    }
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('open');
+    }
+    // Close modal on backdrop click
+    document.querySelectorAll('.modal-backdrop').forEach(el => {
+      el.addEventListener('click', (e) => {
+        if (e.target === el) closeModal(el.id);
+      });
+    });
+
+    // ── Change Password ──
+    function openChangePasswordModal() {
+      ['cpCurrent', 'cpNew', 'cpConfirm'].forEach(id => document.getElementById(id).value = '');
+      document.getElementById('cpError').style.display = 'none';
+      document.getElementById('cpSuccess').style.display = 'none';
+      openModal('changePasswordModal');
+      setTimeout(() => document.getElementById('cpCurrent').focus(), 50);
+    }
+    async function submitChangePassword(e) {
+      e.preventDefault();
+      const cur = document.getElementById('cpCurrent').value;
+      const next = document.getElementById('cpNew').value;
+      const confirm = document.getElementById('cpConfirm').value;
+      const errEl = document.getElementById('cpError');
+      const okEl = document.getElementById('cpSuccess');
+      errEl.style.display = 'none';
+      okEl.style.display = 'none';
+
+      if (next.length < 8) { errEl.textContent = 'New password must be at least 8 characters.'; errEl.style.display = 'block'; return; }
+      if (next !== confirm) { errEl.textContent = 'Passwords do not match.'; errEl.style.display = 'block'; return; }
+
+      try {
+        const res = await apiFetch('/api/auth/change-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ current_password: cur, new_password: next }),
+        });
+        const data = await res.json();
+        if (!res.ok) { errEl.textContent = data.error || 'Failed to change password.'; errEl.style.display = 'block'; return; }
+        okEl.textContent = 'Password changed successfully.';
+        okEl.style.display = 'block';
+        document.getElementById('changePasswordForm').reset();
+        setTimeout(() => closeModal('changePasswordModal'), 1200);
+      } catch (err) {
+        errEl.textContent = 'Network error. Try again.';
+        errEl.style.display = 'block';
+      }
+    }
+
+    // ── Manage Users ──
+    async function openManageUsersModal() {
+      document.getElementById('muError').style.display = 'none';
+      document.getElementById('newUserForm').reset();
+      openModal('manageUsersModal');
+      await refreshUserList();
+    }
+    async function refreshUserList() {
+      const container = document.getElementById('userListContainer');
+      container.innerHTML = '<div style="color:var(--text-muted);font-size:13px">Loading...</div>';
+      try {
+        const res = await apiFetch('/api/users');
+        const users = await res.json();
+        const me = getUsername();
+        if (!users.length) {
+          container.innerHTML = '<div style="color:var(--text-muted);font-size:13px">No users.</div>';
+          return;
+        }
+        container.innerHTML = users.map(u => `
+          <div class="user-row">
+            <span class="name">${escHtml(u)}</span>
+            ${u === me ? '<span class="you-badge">YOU</span>' : ''}
+            <button class="btn btn-sm btn-secondary" data-username="${escHtml(u)}"
+              onclick="openResetPasswordModal(this.dataset.username)">Reset Password</button>
+            ${u === me ? '' : `<button class="btn btn-sm btn-danger" data-username="${escHtml(u)}"
+              onclick="deleteUserAction(this.dataset.username)">Delete</button>`}
+          </div>
+        `).join('');
+      } catch (err) {
+        container.innerHTML = '<div style="color:var(--red);font-size:13px">Failed to load users.</div>';
+      }
+    }
+    async function submitNewUser(e) {
+      e.preventDefault();
+      const username = document.getElementById('newUsername').value.trim();
+      const password = document.getElementById('newPassword').value;
+      const errEl = document.getElementById('muError');
+      errEl.style.display = 'none';
+
+      try {
+        const res = await apiFetch('/api/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password }),
+        });
+        const data = await res.json();
+        if (!res.ok) { errEl.textContent = data.error || 'Failed to create user.'; errEl.style.display = 'block'; return; }
+        document.getElementById('newUserForm').reset();
+        await refreshUserList();
+      } catch (err) {
+        errEl.textContent = 'Network error. Try again.';
+        errEl.style.display = 'block';
+      }
+    }
+    async function deleteUserAction(username) {
+      if (!confirm(`Delete user "${username}"? This cannot be undone.`)) return;
+      const errEl = document.getElementById('muError');
+      errEl.style.display = 'none';
+      try {
+        const res = await apiFetch('/api/users/' + encodeURIComponent(username), { method: 'DELETE' });
+        if (res.status !== 204) {
+          const data = await res.json().catch(() => ({}));
+          errEl.textContent = data.error || 'Failed to delete user.';
+          errEl.style.display = 'block';
+          return;
+        }
+        await refreshUserList();
+      } catch (err) {
+        errEl.textContent = 'Network error. Try again.';
+        errEl.style.display = 'block';
+      }
+    }
+
+    // ── Reset Password ──
+    let _resetPwTarget = '';
+    function openResetPasswordModal(username) {
+      _resetPwTarget = username;
+      document.getElementById('rpUsername').textContent = username;
+      document.getElementById('rpNew').value = '';
+      document.getElementById('rpError').style.display = 'none';
+      openModal('resetPasswordModal');
+      setTimeout(() => document.getElementById('rpNew').focus(), 50);
+    }
+    async function submitResetPassword(e) {
+      e.preventDefault();
+      const newPw = document.getElementById('rpNew').value;
+      const errEl = document.getElementById('rpError');
+      errEl.style.display = 'none';
+      if (newPw.length < 8) { errEl.textContent = 'Password must be at least 8 characters.'; errEl.style.display = 'block'; return; }
+      try {
+        const res = await apiFetch('/api/users/' + encodeURIComponent(_resetPwTarget) + '/password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ new_password: newPw }),
+        });
+        const data = await res.json();
+        if (!res.ok) { errEl.textContent = data.error || 'Failed to reset password.'; errEl.style.display = 'block'; return; }
+        closeModal('resetPasswordModal');
+      } catch (err) {
+        errEl.textContent = 'Network error. Try again.';
+        errEl.style.display = 'block';
+      }
+    }
+
+    // Theme toggle
+    function applyThemeIcon() {
+      const dark = document.documentElement.dataset.theme === 'dark';
+      document.getElementById('themeToggle').textContent = dark ? '☀️' : '🌙';
+    }
+    document.getElementById('themeToggle').addEventListener('click', () => {
+      const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+      document.documentElement.dataset.theme = next;
+      try { localStorage.setItem('hh-theme', next); } catch (e) {}
+      applyThemeIcon();
+    });
+    applyThemeIcon();
 
     // ══════════════════════════════════════════════
     // Config Viewer
@@ -912,7 +1671,7 @@
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>
           ${escHtml(sec)}
         </div>`;
-        html += `<div style="overflow-x:auto"><table><thead><tr>
+        html += `<div class="data-table"><table><thead><tr>
           <th style="width:16%">參數名稱 (Key)</th>
           <th style="width:28%">功能說明</th>
           <th style="width:8%">屬性</th>
@@ -923,12 +1682,12 @@
 
         groups[sec].forEach(it => {
           html += `<tr>
-            <td><span class="key-badge">${escHtml(it.key)}</span></td>
-            <td><div class="desc-text">${escHtml(it.description) || '<span class="val-empty">-</span>'}</div></td>
-            <td>${fmtAttr(it.attribute)}</td>
-            <td>${fmtOptions(it.options)}</td>
-            <td>${fmtDefault(it.default)}</td>
-            <td>${fmtUI(it.ui_settable)}</td>
+            <td data-label="Key"><span class="key-badge">${escHtml(it.key)}</span></td>
+            <td data-label="說明"><div class="desc-text">${escHtml(it.description) || '<span class="val-empty">-</span>'}</div></td>
+            <td data-label="屬性">${fmtAttr(it.attribute)}</td>
+            <td data-label="選項">${fmtOptions(it.options)}</td>
+            <td data-label="預設">${fmtDefault(it.default)}</td>
+            <td data-label="可UI設定">${fmtUI(it.ui_settable)}</td>
           </tr>`;
         });
 
@@ -1020,15 +1779,15 @@
 
         html += `<div class="section-card"><div class="section-header">Recent Activity</div>`;
         if (stats.recent && stats.recent.length > 0) {
-          html += `<div style="overflow-x:auto"><table><thead><tr>
+          html += `<div class="data-table"><table><thead><tr>
             <th>Title</th><th>Severity</th><th>Status</th><th>Updated</th>
           </tr></thead><tbody>`;
           stats.recent.forEach(issue => {
-            html += `<tr style="cursor:pointer" onclick="issueView='detail';issueDetailId='${issue.id}';buildIssueSidebar();renderIssuesPage()">
-              <td><strong>${escHtml(issue.title)}</strong></td>
-              <td><span class="severity-badge severity-${issue.severity}">${issue.severity}</span></td>
-              <td><span class="status-badge status-${issue.status}">${issue.status}</span></td>
-              <td style="color:var(--text-muted);font-size:12px">${relativeTime(issue.updated_at)}</td>
+            html += `<tr style="cursor:pointer" data-issue-id="${escHtml(issue.id)}" onclick="navigateToIssue(this.dataset.issueId)">
+              <td data-label="Title"><strong>${escHtml(issue.title)}</strong></td>
+              <td data-label="Severity"><span class="severity-badge severity-${safeSeverity(issue.severity)}">${escHtml(safeSeverity(issue.severity))}</span></td>
+              <td data-label="Status"><span class="status-badge status-${safeStatus(issue.status)}">${escHtml(safeStatus(issue.status))}</span></td>
+              <td data-label="Updated" style="color:var(--text-muted);font-size:12px">${relativeTime(issue.updated_at)}</td>
             </tr>`;
           });
           html += `</tbody></table></div>`;
@@ -1082,7 +1841,7 @@
           </div>`;
         } else {
           issues.forEach(issue => {
-            html += `<div class="issue-card" onclick="issueView='detail';issueDetailId='${issue.id}';buildIssueSidebar();renderIssuesPage()">
+            html += `<div class="issue-card" data-issue-id="${escHtml(issue.id)}" onclick="navigateToIssue(this.dataset.issueId)">
               <div class="issue-card-header">
                 <span class="issue-card-title">${escHtml(issue.title)}</span>
                 <span class="issue-card-meta">${relativeTime(issue.updated_at)}</span>
@@ -1138,7 +1897,7 @@
                 </div>
                 <div class="md-hint">Tip: Use **bold**, *italic*, \`code\`, - lists, > quotes, ### headings</div>
               </div>
-              <div style="display:flex;gap:16px">
+              <div class="form-row-mobile-stack" style="display:flex;gap:16px">
                 <div class="form-group" style="flex:1">
                   <label class="form-label">Severity</label>
                   <select class="form-select" name="severity">
@@ -1154,14 +1913,22 @@
                   <datalist id="configKeysList">${optionsHtml}</datalist>
                 </div>
               </div>
-              <div style="display:flex;gap:8px;justify-content:flex-end">
-                <button type="button" class="btn btn-secondary" onclick="issueView='list';buildIssueSidebar();renderIssuesPage()">Cancel</button>
+              <div class="form-actions-mobile" style="display:flex;gap:8px;justify-content:flex-end">
                 <button type="submit" class="btn btn-primary">Submit Issue</button>
+                <button type="button" class="btn btn-secondary" onclick="issueView='list';issueDetailId=null;buildIssueSidebar();renderIssuesPage()">Cancel</button>
               </div>
             </form>
           </div>
         </div>
       `;
+
+      // Auto-grow textarea on input (avoids nested scrolling on mobile)
+      const ta = document.getElementById('issueDescTextarea');
+      if (ta) {
+        const grow = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
+        ta.addEventListener('input', grow);
+        requestAnimationFrame(grow);
+      }
     }
 
     // ── Markdown Editor Helpers ──
@@ -1227,6 +1994,7 @@
         });
         if (!res.ok) throw new Error('Failed to create issue');
         issueView = 'list';
+        issueDetailId = null;
         buildIssueSidebar();
         renderIssuesPage();
       } catch (err) {
@@ -1244,7 +2012,7 @@
         const statusOptions = ['open', 'in-progress', 'resolved'];
 
         $issuesContent.innerHTML = `
-          <button class="back-btn" onclick="issueView='list';buildIssueSidebar();renderIssuesPage()">← Back to All Issues</button>
+          <button class="back-btn" onclick="window.location.hash='#issues'">← Back to All Issues</button>
           <div class="issue-detail-header">
             <div class="issue-detail-title">${escHtml(issue.title)}</div>
             <div class="issue-detail-badges">
@@ -1284,10 +2052,14 @@
     async function deleteIssue(id) {
       if (!confirm('Are you sure you want to delete this issue?')) return;
       await apiFetch('/api/issues/' + id, { method: 'DELETE' });
-      issueView = 'list';
-      issueDetailId = null;
-      buildIssueSidebar();
-      renderIssuesPage();
+      if (window.location.hash.startsWith('#issues/')) {
+        window.location.hash = '#issues';
+      } else {
+        issueView = 'list';
+        issueDetailId = null;
+        buildIssueSidebar();
+        renderIssuesPage();
+      }
     }
 
     // ══════════════════════════════════════════════
@@ -1328,7 +2100,7 @@
       });
 
       const newBtn = document.createElement('button');
-      newBtn.className = 'tab-btn';
+      newBtn.className = 'tab-btn desktop-only';
       newBtn.style.cssText = 'margin-top:12px;color:var(--primary);border-color:var(--primary-border);background:var(--primary-bg)';
       newBtn.innerHTML = `<span class="tab-icon">✏️</span><span>New Article</span>`;
       newBtn.onclick = () => { tsEditingSlug = null; tsView = 'editor'; renderTsPage(); };
@@ -1369,7 +2141,7 @@
         } else {
           html += `<div class="article-grid">`;
           articles.forEach(article => {
-            html += `<div class="article-card" data-slug="${escHtml(article.slug)}" onclick="tsView='detail';tsArticleSlug=this.dataset.slug;renderTsPage()">
+            html += `<div class="article-card" data-slug="${escHtml(article.slug)}" onclick="navigateToArticle(this.dataset.slug)">
               <div class="article-card-title">${escHtml(article.title)}</div>
               <div class="article-card-meta">
                 ${article.category ? `<span class="category-pill">${escHtml(article.category)}</span>` : ''}
@@ -1399,10 +2171,10 @@
 
         let html = `
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">
-            <button class="back-btn" style="margin-bottom:0" onclick="tsView='list';tsArticleSlug=null;buildTsSidebar();renderTsPage()">← Back</button>
+            <button class="back-btn" style="margin-bottom:0" onclick="window.location.hash='#troubleshooting'">← Back</button>
             <span style="flex:1"></span>
-            <button class="btn btn-sm btn-secondary" onclick="tsEditingSlug=tsArticleSlug;tsView='editor';renderTsPage()">Edit</button>
-            <button class="btn btn-sm btn-danger" onclick="deleteTsArticle(tsArticleSlug)">Delete</button>
+            <button class="btn btn-sm btn-secondary desktop-only" onclick="tsEditingSlug=tsArticleSlug;tsView='editor';renderTsPage()">Edit</button>
+            <button class="btn btn-sm btn-danger desktop-only" onclick="deleteTsArticle(tsArticleSlug)">Delete</button>
           </div>
           <div class="article-detail-header">
             <div class="article-detail-title">${escHtml(article.title)}</div>
@@ -1632,11 +2404,16 @@
 
     async function loadRnPage() {
       try {
-        rnVersions = await apiFetch('/api/release-notes').then(r => r.json());
-        buildRnSidebar();
-        if (!rnActiveSlug && rnVersions.length > 0) {
-          rnActiveSlug = rnVersions[0].slug;
+        const url = searchQuery
+          ? '/api/release-notes?q=' + encodeURIComponent(searchQuery)
+          : '/api/release-notes';
+        rnVersions = await apiFetch(url).then(r => r.json());
+        // If active version was filtered out (or none active), pick first match
+        const activeStillVisible = rnVersions.some(v => v.slug === rnActiveSlug);
+        if (!activeStillVisible) {
+          rnActiveSlug = rnVersions.length > 0 ? rnVersions[0].slug : null;
         }
+        buildRnSidebar();
         await renderRnContent();
       } catch (e) {
         $rnContent.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Failed to load release notes</div><div class="empty-state-desc">${escHtml(e.message)}</div></div>`;
@@ -1645,6 +2422,13 @@
 
     function buildRnSidebar() {
       $rnTabList.innerHTML = '';
+      if (rnVersions.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'sidebar-empty';
+        empty.textContent = searchQuery ? `No versions match "${searchQuery}"` : 'No versions available';
+        $rnTabList.appendChild(empty);
+        return;
+      }
       rnVersions.forEach(v => {
         const btn = document.createElement('button');
         btn.className = 'tab-btn' + (rnActiveSlug === v.slug ? ' active' : '');
@@ -1662,7 +2446,11 @@
 
     async function renderRnContent() {
       if (!rnActiveSlug) {
-        $rnContent.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📦</div><div class="empty-state-title">No release notes found</div><div class="empty-state-desc">Place XRESTA Release Note.md in the project root.</div></div>`;
+        if (searchQuery) {
+          $rnContent.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🔍</div><div class="empty-state-title">No matches</div><div class="empty-state-desc">No versions contain "${escHtml(searchQuery)}". Try a different search term.</div></div>`;
+        } else {
+          $rnContent.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📦</div><div class="empty-state-title">No release notes found</div><div class="empty-state-desc">Place XRESTA Release Note.md in the project root.</div></div>`;
+        }
         return;
       }
 
@@ -1700,12 +2488,28 @@
     // ══════════════════════════════════════════════
     // Search Integration
     // ══════════════════════════════════════════════
-    $search.addEventListener('input', e => {
-      searchQuery = e.target.value;
+    function applySearch(value) {
+      searchQuery = value;
       if (activePage === 'config') renderConfig();
       else if (activePage === 'issues' && (issueView === 'list' || issueView === 'dashboard')) renderIssuesPage();
       else if (activePage === 'troubleshooting' && tsView === 'list') renderTsPage();
+      else if (activePage === 'release-notes') loadRnPage();
+    }
+
+    $search.addEventListener('input', e => {
+      applySearch(e.target.value);
+      const ms = document.getElementById('mobileSearchInput');
+      if (ms && ms.value !== e.target.value) ms.value = e.target.value;
     });
+
+    // Mobile sticky search bar mirrors the same searchQuery
+    const $mobileSearch = document.getElementById('mobileSearchInput');
+    if ($mobileSearch) {
+      $mobileSearch.addEventListener('input', e => {
+        applySearch(e.target.value);
+        if ($search.value !== e.target.value) $search.value = e.target.value;
+      });
+    }
 
     // ══════════════════════════════════════════════
     // Init
@@ -1733,9 +2537,8 @@
       tabs = Object.keys(DATA);
       activeTab = tabs[0] || '';
 
-      // Determine page from hash
-      activePage = (window.location.hash || '#config').substring(1) || 'config';
-      switchPage(activePage, false);
+      // Determine page from hash; route() handles both page and detail
+      route();
     }
 
     init();
