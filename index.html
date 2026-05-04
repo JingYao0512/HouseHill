@@ -5,15 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!--
       Content Security Policy — locks down what the browser may load.
-      - default-src 'self': only same-origin by default
-      - script-src 'self': no inline/external scripts; Vite emits hashed bundles
-      - style-src: own bundle + Google Fonts CSS; 'unsafe-inline' is needed for
-        the small inline <style> blocks Vite injects for HMR-free CSS variables
-      - font-src: Google Fonts CDN
-      - img-src: own, plus data: URIs (inline SVGs) and blob: (file previews)
-      - connect-src: backend API only
-      - frame-ancestors 'none' / object-src 'none': anti-clickjacking, anti-Flash
-      - base-uri 'self': prevents <base> tag injection
+      Note: frame-ancestors / report-* / sandbox only work as HTTP headers,
+      not in <meta>. GitHub Pages can't set headers, so anti-clickjacking
+      is enforced by the small frame-bust script in src/main.tsx instead.
     -->
     <meta http-equiv="Content-Security-Policy" content="
       default-src 'self';
@@ -22,7 +16,6 @@
       font-src 'self' https://fonts.gstatic.com;
       img-src 'self' data: blob:;
       connect-src 'self' https://househill.de.r.appspot.com;
-      frame-ancestors 'none';
       object-src 'none';
       base-uri 'self';
       form-action 'self';
