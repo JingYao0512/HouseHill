@@ -1,0 +1,50 @@
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: ['./index.html', './src/**/*.{ts,tsx}'],
+  theme: {
+    extend: {
+      colors: {
+        bg: '#f8fafc',
+        surface: '#ffffff',
+        border: '#e2e8f0',
+        'border-light': '#f1f5f9',
+        text: '#0f172a',
+        'text-sec': '#475569',
+        'text-muted': '#94a3b8',
+        primary: '#0f172a',
+        accent: '#3b82f6',
+        'accent-bg': '#eff6ff',
+        'accent-border': '#bfdbfe',
+        'accent-strong': '#1e40af',
+        green: '#16a34a',
+        'green-bg': '#f0fdf4',
+        'green-border': '#bbf7d0',
+        red: '#ef4444',
+        'red-bg': '#fef2f2',
+        'red-border': '#fecaca',
+        amber: '#d97706',
+        'amber-bg': '#fffbeb',
+        'amber-border': '#fde68a',
+        purple: '#7c3aed',
+        'purple-bg': '#f5f3ff',
+        'purple-border': '#ddd6fe',
+      },
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+      },
+      borderRadius: {
+        DEFAULT: '12px',
+        sm: '8px',
+      },
+      boxShadow: {
+        soft: '0 1px 3px rgba(0,0,0,0.08)',
+        md: '0 4px 12px rgba(0,0,0,0.08)',
+        login: '0 24px 64px -12px rgba(0,0,0,0.18)',
+        primary: '0 4px 14px rgba(15,23,42,0.35)',
+        approve: '0 4px 12px rgba(22,163,74,0.3)',
+      },
+    },
+  },
+  plugins: [],
+};

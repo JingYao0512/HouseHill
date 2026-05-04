@@ -1,0 +1,26 @@
+# Keep GitHub Actions and npm dependencies patched automatically.
+# Dependabot opens PRs against main; review and merge weekly.
+
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels: [dependencies, security]
+    groups:
+      gh-actions:
+        patterns: ['*']
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels: [dependencies]
+    groups:
+      production:
+        dependency-type: production
+      development:
+        dependency-type: development

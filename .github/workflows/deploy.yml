@@ -1,0 +1,79 @@
+# ─────────────────────────────────────────────────────────────────
+# Build & deploy the React frontend to GitHub Pages.
+#
+# Security posture:
+#   • triggers only on push-to-main + manual dispatch (never PR — fork PRs
+#     could exfiltrate secrets)
+#   • top-level permissions are read-only; only the deploy job is granted
+#     `pages: write` + `id-token: write` (OIDC, no PAT)
+#   • checkout uses persist-credentials: false so the GITHUB_TOKEN is not
+#     left in .git/config for the rest of the build
+#   • npm ci enforces the lockfile; arbitrary npm scripts run only inside
+#     the ephemeral runner
+#   • concurrency lock prevents overlapping deploys
+# Action versions are managed by Dependabot (.github/dependabot.yml).
+# ─────────────────────────────────────────────────────────────────
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          show-progress: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies (locked)
+        run: npm ci --no-audit --no-fund
+
+      - name: Build
+        env:
+          # Public App Engine endpoint — same value the legacy frontend uses.
+          # Override here if you ever switch backends.
+          VITE_API_BASE_URL: https://househill.de.r.appspot.com
+        run: npm run build
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
