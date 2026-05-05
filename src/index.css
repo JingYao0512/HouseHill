@@ -53,98 +53,339 @@
   }
 }
 
-/* Markdown body styling for troubleshooting articles + release notes */
+/* ─────────────────────────────────────────────────────────────────
+   Markdown body styling — shared base for articles + release notes.
+   `.md-body` is the common rules; `.ts-article-body` and
+   `.release-note-body` extend with class-specific tweaks.
+   ───────────────────────────────────────────────────────────────── */
+.md-body,
+.ts-article-body,
+.release-note-body {
+  font-size: 14px;
+  line-height: 1.8;
+  color: #0f172a;
+  word-wrap: break-word;
+}
+
+/* — Headings — */
+.md-body h1,
 .ts-article-body h1,
 .release-note-body h1 {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 28px 0 14px;
+  letter-spacing: -0.2px;
+}
+.md-body h2,
+.ts-article-body h2 {
   font-size: 18px;
   font-weight: 700;
-  margin: 16px 0 8px;
+  margin: 24px 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e2e8f0;
 }
-.ts-article-body h2,
+.release-note-body h1 {
+  padding-bottom: 12px;
+  border-bottom: 2px solid #bfdbfe;
+}
 .release-note-body h2 {
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 700;
-  margin: 14px 0 6px;
+  margin: 24px 0 10px;
+  color: #475569;
 }
-.ts-article-body h3,
+.md-body h3,
+.ts-article-body h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 20px 0 10px;
+}
 .release-note-body h3 {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
-  margin: 12px 0 4px;
+  margin: 20px 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #94a3b8;
 }
+.md-body h4,
+.ts-article-body h4,
+.release-note-body h4 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 16px 0 6px;
+  color: #475569;
+}
+.md-body h5,
+.ts-article-body h5,
+.release-note-body h5,
+.md-body h6,
+.ts-article-body h6,
+.release-note-body h6 {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 14px 0 4px;
+  color: #64748b;
+}
+.md-body h1:first-child,
+.ts-article-body h1:first-child,
+.release-note-body h1:first-child,
+.md-body h2:first-child,
+.ts-article-body h2:first-child,
+.release-note-body h2:first-child {
+  margin-top: 0;
+}
+
+/* — Paragraphs / text — */
+.md-body p,
 .ts-article-body p,
 .release-note-body p {
-  margin: 6px 0 10px;
+  margin: 0 0 14px;
 }
+.md-body strong,
+.ts-article-body strong,
+.release-note-body strong {
+  font-weight: 700;
+  color: #0f172a;
+}
+.md-body em,
+.ts-article-body em,
+.release-note-body em {
+  color: #475569;
+}
+.md-body del,
+.ts-article-body del,
+.release-note-body del {
+  color: #94a3b8;
+}
+.md-body mark,
+.ts-article-body mark,
+.release-note-body mark {
+  background: #fef3c7;
+  padding: 0 4px;
+  border-radius: 3px;
+}
+
+/* — Lists — */
+.md-body ul,
 .ts-article-body ul,
-.ts-article-body ol,
 .release-note-body ul,
+.md-body ol,
+.ts-article-body ol,
 .release-note-body ol {
-  padding-left: 22px;
-  margin: 6px 0 10px;
+  margin: 0 0 14px;
+  padding-left: 26px;
 }
+.md-body ul,
+.ts-article-body ul,
+.release-note-body ul {
+  list-style: disc;
+}
+.md-body ol,
+.ts-article-body ol,
+.release-note-body ol {
+  list-style: decimal;
+}
+.md-body li,
 .ts-article-body li,
 .release-note-body li {
-  margin: 2px 0;
+  margin: 4px 0;
 }
+.md-body li > ul,
+.md-body li > ol,
+.ts-article-body li > ul,
+.ts-article-body li > ol,
+.release-note-body li > ul,
+.release-note-body li > ol {
+  margin: 4px 0;
+}
+
+/* — Inline code — */
+.md-body code,
 .ts-article-body code,
 .release-note-body code {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 0.92em;
+  font-size: 0.88em;
   background: #f1f5f9;
   border: 1px solid #e2e8f0;
   padding: 1px 6px;
   border-radius: 4px;
+  color: #1e40af;
+  word-break: break-word;
 }
+
+/* — Code blocks — */
+.md-body pre,
 .ts-article-body pre,
 .release-note-body pre {
   background: #0f172a;
   color: #e2e8f0;
-  padding: 12px 16px;
+  padding: 14px 16px;
   border-radius: 8px;
   overflow-x: auto;
-  margin: 8px 0;
+  margin: 0 0 16px;
+  font-size: 13px;
+  line-height: 1.6;
 }
+.md-body pre code,
 .ts-article-body pre code,
 .release-note-body pre code {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
   background: transparent;
   border: 0;
   padding: 0;
   color: inherit;
+  font-size: inherit;
+  word-break: normal;
 }
-.ts-article-body a,
-.release-note-body a {
-  color: #1e40af;
-  text-decoration: underline;
-}
-.ts-article-body img {
-  max-width: 100%;
-  border-radius: 8px;
-  margin: 8px 0;
-}
+
+/* — Blockquotes — */
+.md-body blockquote,
 .ts-article-body blockquote,
 .release-note-body blockquote {
-  border-left: 3px solid #cbd5e1;
-  padding: 4px 12px;
+  border-left: 3px solid #3b82f6;
+  background: #eff6ff;
+  padding: 10px 16px;
+  margin: 0 0 14px;
+  border-radius: 0 8px 8px 0;
   color: #475569;
-  margin: 8px 0;
+  font-size: 13.5px;
 }
+.md-body blockquote p:last-child,
+.ts-article-body blockquote p:last-child,
+.release-note-body blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+/* — Tables — */
+.md-body table,
 .ts-article-body table,
 .release-note-body table {
   border-collapse: collapse;
-  margin: 10px 0;
+  width: auto;
+  max-width: 100%;
+  margin: 0 0 16px;
+  font-size: 13px;
 }
+.md-body th,
+.md-body td,
 .ts-article-body th,
 .ts-article-body td,
 .release-note-body th,
 .release-note-body td {
   border: 1px solid #e2e8f0;
-  padding: 6px 10px;
+  padding: 8px 12px;
   text-align: left;
-  font-size: 13px;
+  vertical-align: top;
 }
+.md-body th,
 .ts-article-body th,
 .release-note-body th {
   background: #f8fafc;
   font-weight: 600;
+  color: #0f172a;
+}
+.md-body tr:nth-child(even) td,
+.ts-article-body tr:nth-child(even) td,
+.release-note-body tr:nth-child(even) td {
+  background: #fafafa;
+}
+
+/* — Images — */
+.md-body img,
+.ts-article-body img,
+.release-note-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  margin: 14px 0;
+  display: block;
+}
+
+/* — Horizontal rule — */
+.md-body hr,
+.ts-article-body hr,
+.release-note-body hr {
+  border: none;
+  border-top: 1px solid #e2e8f0;
+  margin: 24px 0;
+}
+
+/* — Links — */
+.md-body a,
+.ts-article-body a,
+.release-note-body a {
+  color: #1e40af;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-word;
+}
+.md-body a:hover,
+.ts-article-body a:hover,
+.release-note-body a:hover {
+  color: #1e3a8a;
+}
+
+/* — Keyboard / sample / details — */
+.md-body kbd,
+.ts-article-body kbd,
+.release-note-body kbd {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.85em;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 1px 6px;
+  color: #0f172a;
+}
+.md-body details,
+.ts-article-body details,
+.release-note-body details {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 0 0 14px;
+}
+.md-body details > summary,
+.ts-article-body details > summary,
+.release-note-body details > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #0f172a;
+}
+.md-body details[open] > summary,
+.ts-article-body details[open] > summary,
+.release-note-body details[open] > summary {
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+/* — Mobile tweaks — */
+@media (max-width: 767px) {
+  .md-body table,
+  .ts-article-body table,
+  .release-note-body table {
+    display: block;
+    overflow-x: auto;
+  }
+  .md-body pre,
+  .ts-article-body pre,
+  .release-note-body pre {
+    font-size: 12px;
+    padding: 12px 14px;
+  }
+  .md-body h1,
+  .ts-article-body h1,
+  .release-note-body h1 {
+    font-size: 20px;
+  }
+  .md-body h2,
+  .ts-article-body h2,
+  .release-note-body h2 {
+    font-size: 16px;
+  }
 }

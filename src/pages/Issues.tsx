@@ -140,6 +140,7 @@ function IssueDetail({
 
 function IssuesDesktop({ onNav, onCreate, onLogout, isAdmin, onAdminClick }: Props) {
   const [filter, setFilter] = useState<Filter>('all');
+  const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Issue | null>(null);
   const { data, loading, error, reload } = useApi<Issue[]>(
     (signal) => fetchIssues({}, signal),
@@ -163,9 +164,23 @@ function IssuesDesktop({ onNav, onCreate, onLogout, isAdmin, onAdminClick }: Pro
   );
 
   const filtered = useMemo(() => {
-    if (filter === 'all') return issues;
-    return issues.filter((i) => i.status === filter || i.severity === filter);
-  }, [issues, filter]);
+    const base =
+      filter === 'all'
+        ? issues
+        : issues.filter((i) => i.status === filter || i.severity === filter);
+    const q = query.trim().toLowerCase();
+    if (!q) return base;
+    return base.filter((i) =>
+      [i.title, i.id, i.description, i.related_config_key]
+        .filter(Boolean)
+        .some((s) => s.toLowerCase().includes(q))
+    );
+  }, [issues, filter, query]);
+
+  const handleSearch = (q: string) => {
+    setQuery(q);
+    if (selected) setSelected(null);
+  };
 
   return (
     <div className="w-full h-full flex flex-col bg-bg">
@@ -173,6 +188,7 @@ function IssuesDesktop({ onNav, onCreate, onLogout, isAdmin, onAdminClick }: Pro
       <NavHeader
         active="issues"
         onNav={onNav}
+        onSearch={handleSearch}
         onLogout={onLogout}
         isAdmin={isAdmin}
         onAdminClick={onAdminClick}
@@ -259,8 +275,14 @@ function IssuesDesktop({ onNav, onCreate, onLogout, isAdmin, onAdminClick }: Pro
                 </div>
                 {filtered.length === 0 ? (
                   <EmptyState
-                    title="目前沒有異常回報"
-                    hint={filter === 'all' ? '可由右上角「新增回報」開始建立。' : '此篩選條件下沒有資料。'}
+                    title={query ? `找不到「${query}」的相關回報` : '目前沒有異常回報'}
+                    hint={
+                      query
+                        ? '請嘗試不同的關鍵字。'
+                        : filter === 'all'
+                        ? '可由右上角「新增回報」開始建立。'
+                        : '此篩選條件下沒有資料。'
+                    }
                   />
                 ) : (
                   filtered.map((issue) => (

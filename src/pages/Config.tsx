@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { TopBar } from '../components/TopBar';
 import { NavHeader } from '../components/NavHeader';
 import { MobileNav } from '../components/MobileNav';
@@ -20,15 +20,109 @@ interface Props {
   onAdminClick?: () => void;
 }
 
+const sectionDomId = (sheet: string, name: string, idx: number) =>
+  `cfg-sec-${sheet}-${idx}-${name}`.replace(/[^a-zA-Z0-9_-]+/g, '-');
+
+const PREFERRED_SHEET_ORDER = ['System', 'Image', 'Protocol', 'Generator'];
+
+function orderSheets(sheets: string[]): string[] {
+  const rank = (name: string) => {
+    const i = PREFERRED_SHEET_ORDER.findIndex(
+      (p) => name.toLowerCase() === p.toLowerCase()
+    );
+    return i === -1 ? Number.POSITIVE_INFINITY : i;
+  };
+  return [...sheets].sort((a, b) => {
+    const ra = rank(a);
+    const rb = rank(b);
+    if (ra !== rb) return ra - rb;
+    return sheets.indexOf(a) - sheets.indexOf(b);
+  });
+}
+
 function ConfigDesktop({ onNav, onLogout, isAdmin, onAdminClick }: Props) {
   const { data, loading, error, reload } = useApi<WorkbookData>(
     (signal) => fetchConfig(signal),
     []
   );
-  const sheets = useMemo(() => (data ? Object.keys(data) : []), [data]);
+  const sheets = useMemo(() => (data ? orderSheets(Object.keys(data)) : []), [data]);
   const [active, setActive] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
   const sheet = active ?? sheets[0] ?? null;
-  const items = sheet && data ? data[sheet] : [];
+  const rawItems = sheet && data ? data[sheet] : [];
+
+  const isSearching = query.trim().length > 0;
+  const items = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return rawItems;
+    return rawItems
+      .filter((p) => p.key)
+      .filter((p) =>
+        [p.key, p.description, p.default, p.options, p.attribute]
+          .filter(Boolean)
+          .some((s) => s.toLowerCase().includes(q))
+      );
+  }, [rawItems, query]);
+
+  const sections = useMemo(() => {
+    if (!sheet || isSearching) return [] as { name: string; id: string; count: number }[];
+    const result: { name: string; id: string; count: number }[] = [];
+    let secIdx = -1;
+    items.forEach((p) => {
+      if (p.section && !p.key) {
+        secIdx += 1;
+        result.push({
+          name: p.section,
+          id: sectionDomId(sheet, p.section, secIdx),
+          count: 0,
+        });
+      } else if (p.key && result.length > 0) {
+        result[result.length - 1].count += 1;
+      }
+    });
+    return result;
+  }, [items, sheet, isSearching]);
+
+  const mainRef = useRef<HTMLElement | null>(null);
+  const [activeSection, setActiveSection] = useState<string | null>(null);
+  const suppressObserverRef = useRef(false);
+
+  useEffect(() => {
+    setActiveSection(sections[0]?.id ?? null);
+  }, [sheet, sections]);
+
+  useEffect(() => {
+    const root = mainRef.current;
+    if (!root || sections.length === 0) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (suppressObserverRef.current) return;
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible[0]) setActiveSection(visible[0].target.id);
+      },
+      { root, rootMargin: '-20% 0px -70% 0px', threshold: 0 }
+    );
+    sections.forEach((s) => {
+      const el = document.getElementById(s.id);
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
+  }, [sections]);
+
+  const jumpToSection = useCallback((id: string) => {
+    const el = document.getElementById(id);
+    const root = mainRef.current;
+    if (!el || !root) return;
+    suppressObserverRef.current = true;
+    setActiveSection(id);
+    const top = el.getBoundingClientRect().top - root.getBoundingClientRect().top + root.scrollTop - 12;
+    root.scrollTo({ top, behavior: 'smooth' });
+    window.setTimeout(() => {
+      suppressObserverRef.current = false;
+    }, 600);
+  }, []);
 
   return (
     <div className="w-full h-full flex flex-col bg-bg">
@@ -36,6 +130,7 @@ function ConfigDesktop({ onNav, onLogout, isAdmin, onAdminClick }: Props) {
       <NavHeader
         active="config"
         onNav={onNav}
+        onSearch={setQuery}
         onLogout={onLogout}
         isAdmin={isAdmin}
         onAdminClick={onAdminClick}
@@ -61,7 +156,7 @@ function ConfigDesktop({ onNav, onLogout, isAdmin, onAdminClick }: Props) {
             </p>
           </div>
         </aside>
-        <main className="flex-1 overflow-y-auto px-7 py-5">
+        <main ref={mainRef} className="flex-1 overflow-y-auto px-7 py-5">
           {loading && <LoadingState />}
           {error && <ErrorState message={error} onRetry={reload} />}
           {!loading && !error && (
@@ -71,28 +166,83 @@ function ConfigDesktop({ onNav, onLogout, isAdmin, onAdminClick }: Props) {
                   <span>設定類別</span>
                   <ChevronRight width={12} height={12} />
                   <span className="font-bold text-text text-[17px]">{sheet ?? '—'}</span>
+                  {isSearching && (
+                    <>
+                      <ChevronRight width={12} height={12} />
+                      <span className="text-[12px] text-accent">搜尋「{query.trim()}」</span>
+                    </>
+                  )}
                 </div>
                 <span
                   className="text-[11px] text-text-muted bg-white px-3 py-[3px] rounded-[20px]"
                   style={{ border: `1px solid ${T.border}` }}
                 >
-                  {items.length} 個參數
+                  {isSearching
+                    ? `${items.length} 筆符合`
+                    : `${items.length} 個參數`}
                 </span>
               </div>
               {sheet && items.length > 0 ? (
-                <ConfigTable items={items} />
+                <ConfigTable items={items} sheet={sheet} />
               ) : (
-                <EmptyState title="此類別目前沒有參數" hint="請選擇其他類別或檢查資料來源。" />
+                <EmptyState
+                  title={isSearching ? `找不到「${query.trim()}」的相關參數` : '此類別目前沒有參數'}
+                  hint={isSearching ? '請嘗試不同的關鍵字。' : '請選擇其他類別或檢查資料來源。'}
+                />
               )}
             </>
           )}
         </main>
+        {sections.length > 0 && (
+          <aside
+            className="w-[200px] bg-white border-l border-border px-2.5 py-4 flex-shrink-0 overflow-y-auto"
+            style={{ borderLeft: `1px solid ${T.border}` }}
+          >
+            <SidebarLabel>段落導覽</SidebarLabel>
+            {sections.map((s, i) => {
+              const isActive = activeSection === s.id;
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => jumpToSection(s.id)}
+                  className="flex items-start gap-2 w-full text-left rounded-[8px] mb-0.5 transition-all duration-150 cursor-pointer"
+                  style={{
+                    padding: '8px 10px',
+                    border: isActive ? `1px solid ${T.accentBorder}` : '1px solid transparent',
+                    background: isActive ? T.accentBg : 'transparent',
+                  }}
+                >
+                  <span
+                    className="font-mono text-[10px] font-bold pt-[2px] flex-shrink-0"
+                    style={{ color: isActive ? T.accentStrong : T.textMuted, minWidth: 18 }}
+                  >
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span
+                      className="block font-mono text-[12px] font-semibold truncate"
+                      style={{ color: isActive ? T.accentStrong : T.text }}
+                    >
+                      {s.name}
+                    </span>
+                    {s.count > 0 && (
+                      <span className="block text-[10px] text-text-muted mt-[1px]">
+                        {s.count} 項
+                      </span>
+                    )}
+                  </span>
+                </button>
+              );
+            })}
+          </aside>
+        )}
       </div>
     </div>
   );
 }
 
-function ConfigTable({ items }: { items: ConfigItem[] }) {
+function ConfigTable({ items, sheet }: { items: ConfigItem[]; sheet: string }) {
+  let secIdx = -1;
   return (
     <div
       className="bg-white rounded-xl overflow-hidden"
@@ -119,17 +269,27 @@ function ConfigTable({ items }: { items: ConfigItem[] }) {
           </tr>
         </thead>
         <tbody>
-          {items.map((p, i) => (
-            <ConfigRow key={`${p.section}-${p.key}-${i}`} p={p} />
-          ))}
+          {items.map((p, i) => {
+            if (p.section && !p.key) {
+              secIdx += 1;
+              return (
+                <SectionRow
+                  key={`${p.section}-${i}`}
+                  section={p.section}
+                  id={sectionDomId(sheet, p.section, secIdx)}
+                />
+              );
+            }
+            return <ConfigRow key={`${p.section}-${p.key}-${i}`} p={p} />;
+          })}
         </tbody>
       </table>
     </div>
   );
 }
 
-const SectionRow = ({ section }: { section: string }) => (
-  <tr style={{ background: T.bg }}>
+const SectionRow = ({ section, id }: { section: string; id?: string }) => (
+  <tr id={id} style={{ background: T.bg, scrollMarginTop: 12 }}>
     <td
       colSpan={5}
       className="px-4 py-2 font-mono text-xs font-bold text-text-sec uppercase tracking-[0.5px]"
@@ -188,7 +348,7 @@ function ConfigMobile({ onNav, onLogout, isAdmin, onAdminClick }: Props) {
     (signal) => fetchConfig(signal),
     []
   );
-  const sheets = useMemo(() => (data ? Object.keys(data) : []), [data]);
+  const sheets = useMemo(() => (data ? orderSheets(Object.keys(data)) : []), [data]);
   const [active, setActive] = useState<string | null>(null);
   const [showList, setShowList] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);

@@ -259,12 +259,24 @@ function TroubleshootingDesktop({ onNav, onLogout, isAdmin, onAdminClick }: Prop
     return m;
   }, [allArticles]);
 
+  // Sidebar interactions while an article is open should drop back to the list,
+  // otherwise the detail view sticks and the sidebar appears unresponsive.
+  const pickCategory = (c: string) => {
+    setCat(c);
+    setSelectedSlug(null);
+  };
+  const pickSearch = (q: string) => {
+    setSearch(q);
+    if (selectedSlug) setSelectedSlug(null);
+  };
+
   return (
     <div className="w-full h-full flex flex-col bg-bg">
       <TopBar />
       <NavHeader
         active="troubleshooting"
         onNav={onNav}
+        onSearch={pickSearch}
         onLogout={onLogout}
         isAdmin={isAdmin}
         onAdminClick={onAdminClick}
@@ -276,7 +288,7 @@ function TroubleshootingDesktop({ onNav, onLogout, isAdmin, onAdminClick }: Prop
             <SidebarItem
               key={c}
               active={cat === c}
-              onClick={() => setCat(c)}
+              onClick={() => pickCategory(c)}
               trailing={
                 <span
                   className="text-[11px] px-1.5 py-px rounded-[10px] ml-auto"
@@ -307,7 +319,7 @@ function TroubleshootingDesktop({ onNav, onLogout, isAdmin, onAdminClick }: Prop
                   <SearchIcon width={14} height={14} className="text-text-muted" />
                   <input
                     value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                    onChange={(e) => pickSearch(e.target.value)}
                     className="bg-transparent border-0 outline-none text-[13px] text-text w-[200px]"
                     placeholder="搜尋文章..."
                   />
@@ -347,6 +359,10 @@ function TroubleshootingMobile({ onNav, onLogout, isAdmin, onAdminClick }: Props
     (signal) => fetchArticles({ category: cat }, signal),
     [cat]
   );
+  const pickCategory = (c: string) => {
+    setCat(c);
+    setSelectedSlug(null);
+  };
   const categories = useApi<string[]>((signal) => fetchCategories(signal), []);
   const cats = useMemo(() => ['全部', ...(categories.data ?? [])], [categories.data]);
   const allArticles = articles.data ?? [];
@@ -406,7 +422,7 @@ function TroubleshootingMobile({ onNav, onLogout, isAdmin, onAdminClick }: Props
               return (
                 <button
                   key={c}
-                  onClick={() => setCat(c)}
+                  onClick={() => pickCategory(c)}
                   className="rounded-[20px] text-[11px] font-semibold cursor-pointer whitespace-nowrap"
                   style={{
                     padding: '5px 12px',
