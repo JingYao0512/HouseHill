@@ -155,19 +155,19 @@ function LoginDesktop({ onLogin }: Props) {
           <div className="relative z-10">
             <div className="text-4xl mb-4">🏔️</div>
             <div className="text-white text-[26px] font-extrabold tracking-[-0.5px] leading-tight mb-2">
-              山中小屋
+              House Hill
             </div>
             <div className="text-white/55 text-[13px] leading-[1.7] mb-8">
-              HouseHill — 醫療X光軟體
+              HouseHill — XRESTA Support Center
               <br />
-              使用指引與管理平台
+              Configuration Guide & Issue Tracking
             </div>
             <div className="flex flex-col gap-3.5">
               {[
-                { icon: '⚙️', text: '完整設定指引，快速上手' },
-                { icon: '🔧', text: '故障排除知識庫' },
-                { icon: '📋', text: '異常回報與進度追蹤' },
-                { icon: '📦', text: '版本更新紀錄' },
+                { icon: '⚙️', text: 'Comprehensive Setup Guide & Quick Start' },
+                { icon: '🔧', text: 'Troubleshooting Knowledge Base' },
+                { icon: '📋', text: 'Issue Reporting & Status Tracking' },
+                { icon: '📦', text: 'Version History' },
               ].map((feat) => (
                 <div key={feat.text} className="flex items-center gap-2.5">
                   <div
@@ -185,7 +185,7 @@ function LoginDesktop({ onLogin }: Props) {
             </div>
           </div>
           <div className="relative z-10 mt-auto pt-8">
-            <div className="text-[11px] text-white/30 font-mono">HouseHill v0.0.1 (Beta)</div>
+            <div className="text-[11px] text-white/30 font-mono">HouseHill v0.0.2 (Beta)</div>
           </div>
         </div>
 
@@ -321,9 +321,8 @@ function LoginDesktop({ onLogin }: Props) {
                       />
                     ) : (
                       <input
-                        className={`w-full px-3.5 py-2.5 rounded-[8px] text-[13px] outline-none ${
-                          field.mono ? 'font-mono' : ''
-                        }`}
+                        className={`w-full px-3.5 py-2.5 rounded-[8px] text-[13px] outline-none ${field.mono ? 'font-mono' : ''
+                          }`}
                         style={{ border: `1.5px solid ${T.border}`, background: '#fafafa' }}
                         placeholder={field.ph}
                       />
@@ -416,7 +415,7 @@ function LoginMobile({ onLogin }: Props) {
           </div>
           <div className="text-xl font-extrabold text-text tracking-[-0.4px]">HouseHill</div>
           <div className="text-[11px] text-text-muted mt-0.5">
-            山中小屋 · 醫療X光軟體指引
+            House Hill · XRESTA Support Center
           </div>
         </div>
         <div
@@ -518,9 +517,8 @@ function LoginMobile({ onLogin }: Props) {
                       {field.label}
                     </label>
                     <input
-                      className={`w-full px-3.5 py-2.5 rounded-lg text-[15px] outline-none ${
-                        field.mono ? 'font-mono' : ''
-                      }`}
+                      className={`w-full px-3.5 py-2.5 rounded-lg text-[15px] outline-none ${field.mono ? 'font-mono' : ''
+                        }`}
                       style={{ border: `1.5px solid ${T.border}`, background: '#fafafa' }}
                       placeholder={field.ph}
                     />
@@ -570,7 +568,7 @@ function LoginMobile({ onLogin }: Props) {
             )}
           </div>
         </div>
-        <p className="text-center mt-4 text-[11px] text-text-muted">HouseHill v0.0.1 (Beta)</p>
+        <p className="text-center mt-4 text-[11px] text-text-muted">HouseHill v0.0.2 (Beta)</p>
       </div>
     </div>
   );
