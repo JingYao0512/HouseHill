@@ -1,131 +1,506 @@
-import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { TopBar } from '../components/TopBar';
 import { NavHeader } from '../components/NavHeader';
 import { MobileNav } from '../components/MobileNav';
-import { SearchFAB } from '../components/SearchFAB';
-import { MobileSearchOverlay } from '../components/MobileSearchOverlay';
-import { SidebarLabel, SidebarItem } from '../components/Sidebar';
-import { LoadingState, EmptyState, ErrorState } from '../components/States';
-import { ChevronRight, ChevronDown, TableIcon } from '../components/icons';
+import { LoadingState, ErrorState } from '../components/States';
 import { T } from '../tokens';
-import { fetchConfig, type ConfigItem, type WorkbookData } from '../api';
+import {
+  fetchConfig,
+  fetchArticles,
+  type ConfigItem,
+  type WorkbookData,
+  type ArticleListItem,
+} from '../api';
 import { useApi } from '../hooks/useApi';
 import type { PageId } from '../types';
 import { useIsMobile } from '../hooks/useMediaQuery';
+
+const MONO = "'JetBrains Mono',monospace";
 
 interface Props {
   onNav: (id: PageId) => void;
   onLogout?: () => void;
   isAdmin?: boolean;
+  isManager?: boolean;
   onAdminClick?: () => void;
 }
 
-const sectionDomId = (sheet: string, name: string, idx: number) =>
-  `cfg-sec-${sheet}-${idx}-${name}`.replace(/[^a-zA-Z0-9_-]+/g, '-');
+/** 攤平後的參數：帶上所屬分頁，並給一個全域唯一 id（key 會跨分頁重複，共 17 個）。 */
+type Param = ConfigItem & { sheet: string; uid: string };
 
-const PREFERRED_SHEET_ORDER = ['System', 'Image', 'Protocol', 'Generator'];
+const isBlank = (v: string) => !v || v.trim() === '' || v.trim() === '-';
+const show = (v: string) => (isBlank(v) ? '—' : v.trim());
 
-function orderSheets(sheets: string[]): string[] {
-  const rank = (name: string) => {
-    const i = PREFERRED_SHEET_ORDER.findIndex(
-      (p) => name.toLowerCase() === p.toLowerCase()
-    );
-    return i === -1 ? Number.POSITIVE_INFINITY : i;
-  };
-  return [...sheets].sort((a, b) => {
-    const ra = rank(a);
-    const rb = rank(b);
-    if (ra !== rb) return ra - rb;
-    return sheets.indexOf(a) - sheets.indexOf(b);
-  });
+function flatten(data: WorkbookData | null): Param[] {
+  if (!data) return [];
+  return Object.entries(data).flatMap(([sheet, items]) =>
+    items
+      .filter((i) => i.key)
+      .map((i) => ({ ...i, sheet, uid: `${sheet}|${i.section}|${i.key}` }))
+  );
 }
 
-function ConfigDesktop({ onNav, onLogout, isAdmin, onAdminClick }: Props) {
-  const { data, loading, error, reload } = useApi<WorkbookData>(
-    (signal) => fetchConfig(signal),
-    []
+function matches(p: Param, q: string) {
+  const s = q.trim().toLowerCase();
+  if (!s) return true;
+  return [p.key, p.description, p.default, p.options, p.attribute, p.section, p.sheet]
+    .filter(Boolean)
+    .some((x) => x.toLowerCase().includes(s));
+}
+
+// ── Search ───────────────────────────────────────────────────────────
+
+function CfgSearch({
+  value,
+  onChange,
+  mobile,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  mobile?: boolean;
+}) {
+  return (
+    <div
+      className="flex items-center gap-2.5 bg-white"
+      style={{
+        border: `1.5px solid ${T.border}`,
+        borderRadius: 12,
+        padding: mobile ? '0 12px' : '0 16px',
+        height: mobile ? 44 : 48,
+        boxShadow: T.shadow,
+      }}
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2">
+        <circle cx="11" cy="11" r="8" />
+        <path d="m21 21-4.3-4.3" />
+      </svg>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={
+          mobile ? '搜尋設定，例如：DICOM、Port' : '搜尋設定，例如：DICOM、Port、語系、SavingFolder'
+        }
+        className="flex-1 min-w-0 border-0 outline-none bg-transparent text-[15px] text-text font-sans"
+      />
+      {value && (
+        <button
+          onClick={() => onChange('')}
+          aria-label="清除搜尋"
+          className="border-0 w-6 h-6 rounded-full cursor-pointer text-sm leading-none flex-shrink-0"
+          style={{ background: T.bg, color: T.textMuted }}
+        >
+          ×
+        </button>
+      )}
+    </div>
   );
-  const sheets = useMemo(() => (data ? orderSheets(Object.keys(data)) : []), [data]);
-  const [active, setActive] = useState<string | null>(null);
-  const [query, setQuery] = useState('');
-  const sheet = active ?? sheets[0] ?? null;
-  const rawItems = sheet && data ? data[sheet] : [];
+}
 
-  const isSearching = query.trim().length > 0;
-  const items = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return rawItems;
-    return rawItems
-      .filter((p) => p.key)
-      .filter((p) =>
-        [p.key, p.description, p.default, p.options, p.attribute]
-          .filter(Boolean)
-          .some((s) => s.toLowerCase().includes(q))
-      );
-  }, [rawItems, query]);
+// ── Category chips（分頁） ───────────────────────────────────────────
 
-  const sections = useMemo(() => {
-    if (!sheet || isSearching) return [] as { name: string; id: string; count: number }[];
-    const result: { name: string; id: string; count: number }[] = [];
-    let secIdx = -1;
-    items.forEach((p) => {
-      if (p.section && !p.key) {
-        secIdx += 1;
-        result.push({
-          name: p.section,
-          id: sectionDomId(sheet, p.section, secIdx),
-          count: 0,
-        });
-      } else if (p.key && result.length > 0) {
-        result[result.length - 1].count += 1;
-      }
-    });
-    return result;
-  }, [items, sheet, isSearching]);
+function CfgChips({
+  cats,
+  value,
+  onChange,
+  counts,
+  mobile,
+}: {
+  cats: string[];
+  value: string;
+  onChange: (c: string) => void;
+  counts: Record<string, number>;
+  mobile?: boolean;
+}) {
+  return (
+    <div
+      className={`flex gap-1.5 ${
+        mobile ? 'flex-nowrap overflow-x-auto pb-0.5 no-scrollbar' : 'flex-wrap'
+      }`}
+    >
+      {['全部', ...cats].map((c) => {
+        const on = value === c;
+        return (
+          <button
+            key={c}
+            onClick={() => onChange(c)}
+            className="flex items-center gap-1.5 text-xs font-semibold cursor-pointer whitespace-nowrap transition-all duration-150"
+            style={{
+              padding: '6px 12px',
+              borderRadius: 20,
+              border: `1px solid ${on ? T.primary : T.border}`,
+              background: on ? T.primary : T.surface,
+              color: on ? 'white' : T.textSec,
+            }}
+          >
+            {c}
+            <span
+              className="text-[11px] font-medium"
+              style={{ color: on ? 'rgba(255,255,255,0.65)' : T.textMuted }}
+            >
+              {counts[c] ?? 0}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
-  const mainRef = useRef<HTMLElement | null>(null);
-  const [activeSection, setActiveSection] = useState<string | null>(null);
-  const suppressObserverRef = useRef(false);
+// ── Row ──────────────────────────────────────────────────────────────
 
-  useEffect(() => {
-    setActiveSection(sections[0]?.id ?? null);
-  }, [sheet, sections]);
+function CfgRow({
+  p,
+  open,
+  onToggle,
+  related,
+  onOpenArticle,
+  mobile,
+  last,
+}: {
+  p: Param;
+  open: boolean;
+  onToggle: () => void;
+  related: ArticleListItem[];
+  onOpenArticle: () => void;
+  mobile?: boolean;
+  last?: boolean;
+}) {
+  const [copied, setCopied] = useState(false);
+  const uiSettable = p.ui_settable?.trim().toUpperCase() === 'YES';
+  const line = `${p.key} = ${isBlank(p.default) ? '' : p.default.trim()}`;
 
-  useEffect(() => {
-    const root = mainRef.current;
-    if (!root || sections.length === 0) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (suppressObserverRef.current) return;
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-        if (visible[0]) setActiveSection(visible[0].target.id);
-      },
-      { root, rootMargin: '-20% 0px -70% 0px', threshold: 0 }
-    );
-    sections.forEach((s) => {
-      const el = document.getElementById(s.id);
-      if (el) observer.observe(el);
-    });
-    return () => observer.disconnect();
-  }, [sections]);
-
-  const jumpToSection = useCallback((id: string) => {
-    const el = document.getElementById(id);
-    const root = mainRef.current;
-    if (!el || !root) return;
-    suppressObserverRef.current = true;
-    setActiveSection(id);
-    const top = el.getBoundingClientRect().top - root.getBoundingClientRect().top + root.scrollTop - 12;
-    root.scrollTo({ top, behavior: 'smooth' });
-    window.setTimeout(() => {
-      suppressObserverRef.current = false;
-    }, 600);
-  }, []);
+  const copy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      navigator.clipboard.writeText(line);
+    } catch {
+      /* 剪貼簿不可用時靜默略過 */
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1400);
+  };
 
   return (
-    <div className="w-full h-full flex flex-col bg-bg">
+    <div style={{ borderBottom: last ? 'none' : `1px solid ${T.borderLight}` }}>
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center border-0 cursor-pointer text-left font-sans transition-colors duration-150"
+        style={{
+          gap: mobile ? 10 : 16,
+          padding: mobile ? '12px 14px' : '14px 18px',
+          background: open ? T.bg : 'transparent',
+        }}
+      >
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-[3px] flex-wrap">
+            <span className="text-sm font-semibold text-text">{show(p.description)}</span>
+            {uiSettable && (
+              <span
+                className="text-[10px] font-bold"
+                style={{
+                  color: T.green,
+                  background: T.greenBg,
+                  border: `1px solid ${T.greenBorder}`,
+                  padding: '1px 6px',
+                  borderRadius: 4,
+                }}
+              >
+                介面可設定
+              </span>
+            )}
+          </div>
+          <div className="text-xs break-all" style={{ fontFamily: MONO, color: T.accentStrong }}>
+            {p.key}
+          </div>
+        </div>
+        <div className="text-right flex-shrink-0">
+          <div className="text-[10px] mb-1" style={{ color: T.textMuted }}>
+            預設值
+          </div>
+          <span
+            className="text-[13px] font-medium text-text bg-white"
+            style={{
+              fontFamily: MONO,
+              border: `1px solid ${T.border}`,
+              padding: '3px 10px',
+              borderRadius: 6,
+            }}
+          >
+            {show(p.default)}
+          </span>
+        </div>
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={T.textMuted}
+          strokeWidth="2"
+          className="flex-shrink-0"
+          style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+
+      {open && (
+        <div style={{ padding: mobile ? '2px 14px 14px' : '2px 18px 16px', background: T.bg }}>
+          <div
+            className="flex items-center gap-2.5"
+            style={{
+              background: '#0f172a',
+              borderRadius: 8,
+              padding: '10px 12px 10px 14px',
+              fontFamily: MONO,
+              fontSize: 12.5,
+              color: '#e2e8f0',
+            }}
+          >
+            <span className="flex-1 min-w-0 overflow-x-auto whitespace-nowrap">
+              <span style={{ color: '#93c5fd' }}>{p.key}</span>
+              {' = '}
+              <span style={{ color: '#fde68a' }}>{show(p.default)}</span>
+            </span>
+            <button
+              onClick={copy}
+              className="flex-shrink-0 text-[11px] font-semibold text-white cursor-pointer font-sans"
+              style={{
+                border: '1px solid rgba(255,255,255,0.2)',
+                background: copied ? 'rgba(22,163,74,0.35)' : 'rgba(255,255,255,0.08)',
+                borderRadius: 6,
+                padding: '4px 10px',
+              }}
+            >
+              {copied ? '已複製' : '複製'}
+            </button>
+          </div>
+
+          {/* 可填值：來源 Excel 有這欄（118/219 筆），舊版畫面從未顯示 */}
+          {!isBlank(p.options) && (
+            <div className="mt-2.5 text-xs" style={{ color: T.textSec }}>
+              <span style={{ color: T.textMuted }}>可填值　</span>
+              <span style={{ fontFamily: MONO, color: T.text }}>{p.options.trim()}</span>
+            </div>
+          )}
+
+          <div
+            className="flex flex-wrap mt-2.5 text-xs"
+            style={{ gap: mobile ? 12 : 20, color: T.textSec }}
+          >
+            <span>
+              類型
+              <span style={{ fontFamily: MONO, color: T.purple, fontWeight: 600 }}>
+                {show(p.attribute)}
+              </span>
+            </span>
+            <span>
+              分類　{p.sheet}
+              {p.section ? ` · ${p.section}` : ''}
+            </span>
+            <span>{uiSettable ? '可由軟體介面設定' : '需修改設定檔'}</span>
+          </div>
+
+          {related.length > 0 && (
+            <div className="mt-3">
+              <div className="text-[11px] font-bold mb-1.5" style={{ color: T.textMuted }}>
+                相關故障排除
+              </div>
+              <div className="flex gap-1.5 flex-wrap">
+                {related.map((a) => (
+                  <button
+                    key={a.slug}
+                    onClick={onOpenArticle}
+                    className="text-xs cursor-pointer font-sans"
+                    style={{
+                      color: T.accentStrong,
+                      background: T.accentBg,
+                      border: `1px solid ${T.accentBorder}`,
+                      padding: '3px 10px',
+                      borderRadius: 20,
+                    }}
+                  >
+                    {a.title} →
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Body ─────────────────────────────────────────────────────────────
+
+function CfgBody({
+  mobile,
+  query,
+  setQuery,
+  onNav,
+}: {
+  mobile?: boolean;
+  query: string;
+  setQuery: (q: string) => void;
+  onNav: (id: PageId) => void;
+}) {
+  const { data, loading, error, reload } = useApi<WorkbookData>((signal) => fetchConfig(signal), []);
+  const articles = useApi<ArticleListItem[]>((signal) => fetchArticles({}, signal), []);
+  const [cat, setCat] = useState('全部');
+  const [open, setOpen] = useState<string | null>(null);
+
+  const all = useMemo(() => flatten(data), [data]);
+  const sheets = useMemo(() => (data ? Object.keys(data) : []), [data]);
+  const matched = useMemo(() => all.filter((p) => matches(p, query)), [all, query]);
+
+  const counts = useMemo(() => {
+    const c: Record<string, number> = { 全部: matched.length };
+    sheets.forEach((s) => {
+      c[s] = matched.filter((p) => p.sheet === s).length;
+    });
+    return c;
+  }, [matched, sheets]);
+
+  /** 晶片依「分頁」篩選；群組再依 section 細分（System 有 147 項，只分到分頁太粗）。 */
+  const groups = useMemo(() => {
+    const visible = matched.filter((p) => cat === '全部' || p.sheet === cat);
+    const out: { id: string; sheet: string; section: string; items: Param[] }[] = [];
+    visible.forEach((p) => {
+      const id = `${p.sheet}|${p.section}`;
+      const g = out.find((x) => x.id === id);
+      if (g) g.items.push(p);
+      else out.push({ id, sheet: p.sheet, section: p.section, items: [p] });
+    });
+    return out;
+  }, [matched, cat]);
+
+  /** key → 有引用該 key 的故障排除文章 */
+  const relatedByKey = useMemo(() => {
+    const m: Record<string, ArticleListItem[]> = {};
+    (articles.data ?? []).forEach((a) => {
+      (a.related_config_keys ?? []).forEach((k) => {
+        (m[k] ||= []).push(a);
+      });
+    });
+    return m;
+  }, [articles.data]);
+
+  return (
+    <div
+      style={{
+        maxWidth: 820,
+        margin: '0 auto',
+        padding: mobile ? '16px 14px 24px' : '28px 32px 40px',
+      }}
+    >
+      <div
+        className="font-extrabold text-text"
+        style={{ fontSize: mobile ? 18 : 22, letterSpacing: '-0.4px' }}
+      >
+        設定指引
+      </div>
+      <div
+        className="text-[13px] mt-1"
+        style={{ color: T.textMuted, marginBottom: mobile ? 12 : 16 }}
+      >
+        搜尋要調整的設定，點選即可查看寫法與相關說明
+      </div>
+
+      <CfgSearch value={query} onChange={setQuery} mobile={mobile} />
+
+      {sheets.length > 0 && (
+        <div className="mt-3">
+          <CfgChips cats={sheets} value={cat} onChange={setCat} counts={counts} mobile={mobile} />
+        </div>
+      )}
+
+      <div
+        className="text-xs"
+        style={{
+          marginTop: 12,
+          marginBottom: mobile ? 16 : 22,
+          color: '#92400e',
+          background: T.amberBg,
+          border: `1px solid ${T.amberBorder}`,
+          borderRadius: 8,
+          padding: '8px 12px',
+        }}
+      >
+        <strong>注意：</strong>修改設定後需重啟服務方能生效
+      </div>
+
+      {loading && <LoadingState />}
+      {error && <ErrorState message={error} onRetry={reload} />}
+
+      {!loading && !error && groups.length === 0 && (
+        <div
+          className="text-center"
+          style={{
+            padding: '40px 16px',
+            background: T.surface,
+            border: `1px dashed ${T.border}`,
+            borderRadius: T.radius,
+          }}
+        >
+          <div className="text-sm font-semibold mb-1" style={{ color: T.textSec }}>
+            {query ? `找不到「${query}」相關的設定` : '目前沒有設定資料'}
+          </div>
+          <div className="text-xs" style={{ color: T.textMuted }}>
+            試試其他關鍵字，或到「故障排除」搜尋
+          </div>
+        </div>
+      )}
+
+      {!loading &&
+        !error &&
+        groups.map((g) => (
+          <section key={g.id} style={{ marginBottom: mobile ? 16 : 20 }}>
+            <div className="flex items-baseline gap-2 mb-2 px-0.5">
+              <span className="text-[13px] font-bold text-text">{g.section || g.sheet}</span>
+              {cat === '全部' && g.section && (
+                <span className="text-[11px]" style={{ color: T.textMuted }}>
+                  {g.sheet}
+                </span>
+              )}
+              <span className="text-xs" style={{ color: T.textMuted }}>
+                {g.items.length} 項
+              </span>
+            </div>
+            <div
+              className="bg-white overflow-hidden"
+              style={{
+                border: `1px solid ${T.border}`,
+                borderRadius: T.radius,
+                boxShadow: T.shadow,
+              }}
+            >
+              {g.items.map((p, i) => (
+                <CfgRow
+                  key={p.uid}
+                  p={p}
+                  mobile={mobile}
+                  last={i === g.items.length - 1}
+                  open={open === p.uid}
+                  onToggle={() => setOpen(open === p.uid ? null : p.uid)}
+                  related={relatedByKey[p.key] ?? []}
+                  onOpenArticle={() => onNav('troubleshooting')}
+                />
+              ))}
+            </div>
+          </section>
+        ))}
+    </div>
+  );
+}
+
+// ── Page ─────────────────────────────────────────────────────────────
+
+export default function Config({ onNav, onLogout, isAdmin, onAdminClick }: Props) {
+  const isMobile = useIsMobile();
+  const [query, setQuery] = useState('');
+
+  return (
+    <div className="w-full h-full flex flex-col bg-bg font-sans">
       <TopBar />
       <NavHeader
         active="config"
@@ -134,414 +509,12 @@ function ConfigDesktop({ onNav, onLogout, isAdmin, onAdminClick }: Props) {
         onLogout={onLogout}
         isAdmin={isAdmin}
         onAdminClick={onAdminClick}
+        mobile={isMobile}
       />
-      <div className="flex flex-1 overflow-hidden">
-        <aside className="w-[200px] bg-white border-r border-border px-2.5 py-4 flex-shrink-0 overflow-y-auto">
-          <SidebarLabel>設定類別</SidebarLabel>
-          {sheets.map((s) => (
-            <SidebarItem key={s} active={sheet === s} onClick={() => setActive(s)}>
-              {s}
-            </SidebarItem>
-          ))}
-          {!loading && sheets.length === 0 && !error && (
-            <div className="text-[11px] text-text-muted px-2">尚無設定資料</div>
-          )}
-          <div
-            className="mt-5 rounded-[8px] p-3"
-            style={{ background: T.amberBg, border: `1px solid ${T.amberBorder}` }}
-          >
-            <div className="text-[11px] font-bold text-amber mb-1">⚠️ 注意</div>
-            <p className="text-[11px] leading-[1.6]" style={{ color: '#92400e' }}>
-              修改後需<strong>重啟服務</strong>方能生效
-            </p>
-          </div>
-        </aside>
-        <main ref={mainRef} className="flex-1 overflow-y-auto px-7 py-5">
-          {loading && <LoadingState />}
-          {error && <ErrorState message={error} onRetry={reload} />}
-          {!loading && !error && (
-            <>
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2 text-[13px] text-text-muted">
-                  <span>設定類別</span>
-                  <ChevronRight width={12} height={12} />
-                  <span className="font-bold text-text text-[17px]">{sheet ?? '—'}</span>
-                  {isSearching && (
-                    <>
-                      <ChevronRight width={12} height={12} />
-                      <span className="text-[12px] text-accent">搜尋「{query.trim()}」</span>
-                    </>
-                  )}
-                </div>
-                <span
-                  className="text-[11px] text-text-muted bg-white px-3 py-[3px] rounded-[20px]"
-                  style={{ border: `1px solid ${T.border}` }}
-                >
-                  {isSearching
-                    ? `${items.length} 筆符合`
-                    : `${items.length} 個參數`}
-                </span>
-              </div>
-              {sheet && items.length > 0 ? (
-                <ConfigTable items={items} sheet={sheet} />
-              ) : (
-                <EmptyState
-                  title={isSearching ? `找不到「${query.trim()}」的相關參數` : '此類別目前沒有參數'}
-                  hint={isSearching ? '請嘗試不同的關鍵字。' : '請選擇其他類別或檢查資料來源。'}
-                />
-              )}
-            </>
-          )}
-        </main>
-        {sections.length > 0 && (
-          <aside
-            className="w-[200px] bg-white border-l border-border px-2.5 py-4 flex-shrink-0 overflow-y-auto"
-            style={{ borderLeft: `1px solid ${T.border}` }}
-          >
-            <SidebarLabel>段落導覽</SidebarLabel>
-            {sections.map((s, i) => {
-              const isActive = activeSection === s.id;
-              return (
-                <button
-                  key={s.id}
-                  onClick={() => jumpToSection(s.id)}
-                  className="flex items-start gap-2 w-full text-left rounded-[8px] mb-0.5 transition-all duration-150 cursor-pointer"
-                  style={{
-                    padding: '8px 10px',
-                    border: isActive ? `1px solid ${T.accentBorder}` : '1px solid transparent',
-                    background: isActive ? T.accentBg : 'transparent',
-                  }}
-                >
-                  <span
-                    className="font-mono text-[10px] font-bold pt-[2px] flex-shrink-0"
-                    style={{ color: isActive ? T.accentStrong : T.textMuted, minWidth: 18 }}
-                  >
-                    {String(i + 1).padStart(2, '0')}
-                  </span>
-                  <span className="flex-1 min-w-0">
-                    <span
-                      className="block font-mono text-[12px] font-semibold truncate"
-                      style={{ color: isActive ? T.accentStrong : T.text }}
-                    >
-                      {s.name}
-                    </span>
-                    {s.count > 0 && (
-                      <span className="block text-[10px] text-text-muted mt-[1px]">
-                        {s.count} 項
-                      </span>
-                    )}
-                  </span>
-                </button>
-              );
-            })}
-          </aside>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function ConfigTable({ items, sheet }: { items: ConfigItem[]; sheet: string }) {
-  let secIdx = -1;
-  return (
-    <div
-      className="bg-white rounded-xl overflow-hidden"
-      style={{ border: `1px solid ${T.border}`, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}
-    >
-      <div
-        className="bg-bg px-4 py-2.5 text-xs font-bold text-text-sec flex items-center gap-1.5"
-        style={{ borderBottom: `1px solid ${T.border}` }}
-      >
-        <TableIcon width={14} height={14} />
-        參數列表
-      </div>
-      <table className="w-full border-collapse">
-        <thead>
-          <tr className="bg-bg" style={{ borderBottom: `1px solid ${T.border}` }}>
-            {['參數名稱', '說明', '類型', '預設值', 'UI 可設定'].map((h) => (
-              <th
-                key={h}
-                className="px-4 py-2.5 text-[11px] font-bold text-text-muted text-left uppercase tracking-[0.5px] whitespace-nowrap"
-              >
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((p, i) => {
-            if (p.section && !p.key) {
-              secIdx += 1;
-              return (
-                <SectionRow
-                  key={`${p.section}-${i}`}
-                  section={p.section}
-                  id={sectionDomId(sheet, p.section, secIdx)}
-                />
-              );
-            }
-            return <ConfigRow key={`${p.section}-${p.key}-${i}`} p={p} />;
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-const SectionRow = ({ section, id }: { section: string; id?: string }) => (
-  <tr id={id} style={{ background: T.bg, scrollMarginTop: 12 }}>
-    <td
-      colSpan={5}
-      className="px-4 py-2 font-mono text-xs font-bold text-text-sec uppercase tracking-[0.5px]"
-    >
-      [{section}]
-    </td>
-  </tr>
-);
-
-function ConfigRow({ p }: { p: ConfigItem }) {
-  if (p.section && !p.key) return <SectionRow section={p.section} />;
-  return (
-    <tr style={{ borderBottom: `1px solid ${T.borderLight}` }}>
-      <td className="px-4 py-3 align-top">
-        <span
-          className="font-mono text-xs font-medium px-2 py-[3px] rounded-[5px]"
-          style={{
-            color: T.accentStrong,
-            background: T.accentBg,
-            border: `1px solid ${T.accentBorder}`,
-          }}
-        >
-          {p.key}
-        </span>
-      </td>
-      <td className="px-4 py-3 text-[13px] text-text align-top max-w-[360px]">{p.description}</td>
-      <td className="px-4 py-3 align-top">
-        {p.attribute && p.attribute !== '-' && (
-          <span
-            className="text-[11px] font-semibold px-2 py-[2px] rounded-[20px]"
-            style={{ color: T.purple, background: T.purpleBg, border: `1px solid ${T.purpleBorder}` }}
-          >
-            {p.attribute}
-          </span>
-        )}
-      </td>
-      <td className="px-4 py-3 font-mono text-xs text-text-sec align-top">{p.default}</td>
-      <td className="px-4 py-3 align-top">
-        {p.ui_settable && p.ui_settable.toUpperCase() === 'YES' ? (
-          <span
-            className="text-[11px] font-bold px-2 py-[2px] rounded-[5px]"
-            style={{ color: T.green, background: T.greenBg, border: `1px solid ${T.greenBorder}` }}
-          >
-            YES
-          </span>
-        ) : (
-          <span className="text-[11px] text-text-muted">—</span>
-        )}
-      </td>
-    </tr>
-  );
-}
-
-function ConfigMobile({ onNav, onLogout, isAdmin, onAdminClick }: Props) {
-  const { data, loading, error, reload } = useApi<WorkbookData>(
-    (signal) => fetchConfig(signal),
-    []
-  );
-  const sheets = useMemo(() => (data ? orderSheets(Object.keys(data)) : []), [data]);
-  const [active, setActive] = useState<string | null>(null);
-  const [showList, setShowList] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const sheet = active ?? sheets[0] ?? null;
-  const items = sheet && data ? data[sheet] : [];
-
-  const allParams = useMemo(() => {
-    if (!data) return [];
-    return Object.entries(data).flatMap(([cat, ps]) =>
-      ps.filter((p) => p.key).map((p) => ({ ...p, cat }))
-    );
-  }, [data]);
-
-  const renderResult = {
-    match: (item: ConfigItem & { cat: string }, q: string) =>
-      item.key.includes(q) || item.description.includes(q) || (item.default ?? '').includes(q),
-    render: (item: ConfigItem & { cat: string }, i: number) => (
-      <div
-        key={i}
-        className="bg-white rounded-[8px] px-3.5 py-3 mb-2.5"
-        style={{ border: `1px solid ${T.border}`, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}
-      >
-        <div className="flex items-center justify-between gap-2 mb-1">
-          <span
-            className="font-mono text-xs px-2 py-[3px] rounded-[5px] break-all"
-            style={{
-              color: T.accentStrong,
-              background: T.accentBg,
-              border: `1px solid ${T.accentBorder}`,
-            }}
-          >
-            {item.key}
-          </span>
-          <span
-            className="text-[10px] text-text-muted bg-bg px-2 py-[2px] rounded-[10px] whitespace-nowrap flex-shrink-0"
-            style={{ border: `1px solid ${T.border}` }}
-          >
-            {item.cat}
-          </span>
-        </div>
-        <div className="text-[13px] text-text mb-1">{item.description}</div>
-        <div className="text-[11px] text-text-muted">
-          預設：<span className="font-mono text-text-sec">{item.default}</span>
-        </div>
-      </div>
-    ),
-  };
-
-  return (
-    <div className="w-full h-full flex flex-col bg-bg font-sans relative">
-      <TopBar />
-      <NavHeader
-        active="config"
-        onNav={onNav}
-        onLogout={onLogout}
-        isAdmin={isAdmin}
-        onAdminClick={onAdminClick}
-        mobile
-      />
-      <MobileSearchOverlay
-        open={searchOpen}
-        onClose={() => setSearchOpen(false)}
-        placeholder="搜尋參數名稱或說明..."
-        data={allParams}
-        renderResult={renderResult}
-      />
-      <div
-        className="bg-white px-3.5 py-2.5 flex items-center gap-2.5"
-        style={{ borderBottom: `1px solid ${T.border}` }}
-      >
-        <button
-          onClick={() => setShowList(!showList)}
-          className="flex items-center gap-2 flex-1 bg-bg rounded-[8px] px-3 py-2.5 text-sm font-semibold text-text justify-between cursor-pointer"
-          style={{ border: `1px solid ${T.border}` }}
-        >
-          <span>{sheet ?? '—'}</span>
-          <ChevronDown width={14} height={14} />
-        </button>
-        <span
-          className="text-[11px] text-text-muted bg-white px-2.5 py-1 rounded-[20px] whitespace-nowrap"
-          style={{ border: `1px solid ${T.border}` }}
-        >
-          {items.length} 項
-        </span>
-      </div>
-      {showList && sheets.length > 0 && (
-        <div
-          className="bg-white rounded-[8px] mx-3.5 absolute left-0 right-0 z-50"
-          style={{
-            top: 130,
-            border: `1px solid ${T.border}`,
-            boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-          }}
-        >
-          {sheets.map((c) => (
-            <button
-              key={c}
-              onClick={() => {
-                setActive(c);
-                setShowList(false);
-              }}
-              className="block w-full px-4 py-3 border-0 text-sm cursor-pointer text-left"
-              style={{
-                borderBottom: `1px solid ${T.borderLight}`,
-                background: sheet === c ? T.accentBg : 'transparent',
-                color: sheet === c ? T.accentStrong : T.text,
-                fontWeight: sheet === c ? 600 : 400,
-              }}
-            >
-              {c}
-            </button>
-          ))}
-        </div>
-      )}
-      <main className="flex-1 overflow-y-auto px-3.5 pt-3.5 pb-20">
-        {loading && <LoadingState />}
-        {error && <ErrorState message={error} onRetry={reload} />}
-        {!loading && !error && items.filter((p) => p.key).length === 0 && (
-          <EmptyState title="此類別目前沒有參數" />
-        )}
-        {!loading && !error &&
-          items.map((p, i) => {
-            if (!p.key) {
-              return p.section ? (
-                <div
-                  key={`s-${i}`}
-                  className="font-mono text-[11px] font-bold text-text-muted uppercase tracking-[1px] mt-3 mb-1.5 px-1"
-                >
-                  [{p.section}]
-                </div>
-              ) : null;
-            }
-            return (
-              <div
-                key={`${p.key}-${i}`}
-                className="bg-white rounded-[8px] px-3.5 py-3 mb-2.5"
-                style={{
-                  border: `1px solid ${T.border}`,
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-                }}
-              >
-                <div className="flex items-start justify-between gap-2 mb-1.5">
-                  <span
-                    className="font-mono text-xs font-medium px-2 py-[3px] rounded-[5px] break-all"
-                    style={{
-                      color: T.accentStrong,
-                      background: T.accentBg,
-                      border: `1px solid ${T.accentBorder}`,
-                    }}
-                  >
-                    {p.key}
-                  </span>
-                  {p.ui_settable?.toUpperCase() === 'YES' && (
-                    <span
-                      className="text-[10px] font-bold px-1.5 py-[2px] rounded-[4px] whitespace-nowrap flex-shrink-0"
-                      style={{
-                        color: T.green,
-                        background: T.greenBg,
-                        border: `1px solid ${T.greenBorder}`,
-                      }}
-                    >
-                      UI
-                    </span>
-                  )}
-                </div>
-                <div className="text-[13px] text-text mb-1.5">{p.description}</div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-text-muted">預設：</span>
-                  <span className="font-mono text-xs text-text-sec">{p.default}</span>
-                  {p.attribute && p.attribute !== '-' && (
-                    <span
-                      className="ml-auto text-[11px] font-semibold px-1.5 py-[2px] rounded-[20px]"
-                      style={{
-                        color: T.purple,
-                        background: T.purpleBg,
-                        border: `1px solid ${T.purpleBorder}`,
-                      }}
-                    >
-                      {p.attribute}
-                    </span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+      <main className="flex-1 overflow-y-auto">
+        <CfgBody mobile={isMobile} query={query} setQuery={setQuery} onNav={onNav} />
       </main>
-      <SearchFAB onOpen={() => setSearchOpen(true)} />
-      <MobileNav active="config" onNav={onNav} />
+      {isMobile && <MobileNav active="config" onNav={onNav} />}
     </div>
   );
-}
-
-export default function Config(props: Props) {
-  const isMobile = useIsMobile();
-  return isMobile ? <ConfigMobile {...props} /> : <ConfigDesktop {...props} />;
 }

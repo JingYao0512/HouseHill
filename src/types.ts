@@ -2,7 +2,22 @@
 // frontend-only types (routes/page ids) and re-exports a few token aliases
 // for convenience.
 
-export type { Severity, IssueStatus, RequestStatus, ReleaseType } from './tokens';
+export type {
+  Severity,
+  IssueStatus,
+  RequestStatus,
+  ReleaseType,
+  ReqStatus,
+  Software,
+  Priority,
+  Role,
+} from './tokens';
 
-export type PageId = 'config' | 'issues' | 'troubleshooting' | 'release-notes';
+export type PageId =
+  | 'config'
+  | 'issues'
+  | 'requirements'
+  | 'troubleshooting'
+  | 'release-notes'
+  | 'assistant';
 export type AppRoute = 'login' | PageId | 'issue-create' | 'admin';

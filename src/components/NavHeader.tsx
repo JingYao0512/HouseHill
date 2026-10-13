@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import type { PageId } from '../types';
 import { SearchIcon } from './icons';
+import { auth } from '../api';
+import { roleStyle } from '../tokens';
 
 interface NavHeaderProps {
   active: PageId;
@@ -15,8 +17,10 @@ interface NavHeaderProps {
 const pages: Array<{ id: PageId; icon: string; label: string }> = [
   { id: 'config', icon: '⚙️', label: '設定指引' },
   { id: 'issues', icon: '📋', label: '異常回報' },
+  { id: 'requirements', icon: '📝', label: '需求管理' },
   { id: 'troubleshooting', icon: '🔧', label: '故障排除' },
   { id: 'release-notes', icon: '📦', label: '更新紀錄' },
+  { id: 'assistant', icon: '💬', label: '客服小幫手' },
 ];
 
 function AvatarMenu({
@@ -32,6 +36,8 @@ function AvatarMenu({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const username = auth.getUsername() ?? 'user';
+  const roleLabel = roleStyle[auth.getRole()].label;
 
   useEffect(() => {
     if (!open) return;
@@ -50,7 +56,7 @@ function AvatarMenu({
           mobile ? 'w-7 h-7' : 'w-[30px] h-[30px]'
         } rounded-full bg-[#e2e8f0] text-text-sec text-[11px] font-bold flex items-center justify-center cursor-pointer border-0`}
       >
-        A
+        {username[0]?.toUpperCase() ?? 'U'}
       </button>
       {open && (
         <div
@@ -64,10 +70,8 @@ function AvatarMenu({
             className="px-3.5 py-2.5"
             style={{ borderBottom: '1px solid #f1f5f9' }}
           >
-            <div className="text-[13px] font-semibold text-text">admin</div>
-            <div className="text-[11px] text-text-muted">
-              {isAdmin ? '管理員' : '一般使用者'}
-            </div>
+            <div className="text-[13px] font-semibold text-text">{username}</div>
+            <div className="text-[11px] text-text-muted">{roleLabel}</div>
           </div>
           {isAdmin && onAdminClick && (
             <button
@@ -184,9 +188,14 @@ export function NavHeader({
           onLogout={onLogout}
         />
         <div>
-          <div className="text-[12px] font-semibold text-text">admin</div>
-          <div className="text-[10px] text-red font-bold">
-            {isAdmin ? '管理員' : '使用者'}
+          <div className="text-[12px] font-semibold text-text">
+            {auth.getUsername() ?? 'user'}
+          </div>
+          <div
+            className="text-[10px] font-bold"
+            style={{ color: roleStyle[auth.getRole()].color }}
+          >
+            {roleStyle[auth.getRole()].label}
           </div>
         </div>
       </div>

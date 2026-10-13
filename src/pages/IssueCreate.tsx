@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef } from 'react';
 import { TopBar } from '../components/TopBar';
 import { NavHeader } from '../components/NavHeader';
 import { MobileNav } from '../components/MobileNav';
@@ -8,11 +8,16 @@ import {
   FileTextIcon,
   TriangleIcon,
   PaperclipIcon,
-  UploadIcon,
   SearchIcon,
 } from '../components/icons';
 import { T, sevStyle, type Severity } from '../tokens';
-import { ApiError, createIssue, fetchConfig, type WorkbookData } from '../api';
+import {
+  ApiError,
+  createIssue,
+  uploadIssueAttachment,
+  fetchConfig,
+  type WorkbookData,
+} from '../api';
 import { useApi } from '../hooks/useApi';
 import type { PageId } from '../types';
 import { useIsMobile } from '../hooks/useMediaQuery';
@@ -236,9 +241,28 @@ function useIssueForm(onDone: (id?: string) => void) {
   const [severity, setSeverity] = useState<Severity>('medium');
   const [description, setDescription] = useState('');
   const [relatedConfigKey, setRelatedConfigKey] = useState('');
+  const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submittedId, setSubmittedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [uploadWarning, setUploadWarning] = useState<string | null>(null);
+
+  const addFiles = (incoming: FileList | File[]) => {
+    const list = Array.from(incoming);
+    const tooBig = list.find((f) => f.size > MAX_ATTACHMENT_MB * 1024 * 1024);
+    if (tooBig) {
+      setUploadWarning(`「${tooBig.name}」超過 ${MAX_ATTACHMENT_MB}MB 上限，未加入`);
+      return;
+    }
+    setUploadWarning(null);
+    // 同名檔只留一份
+    setFiles((prev) => {
+      const names = new Set(prev.map((f) => f.name));
+      return [...prev, ...list.filter((f) => !names.has(f.name))];
+    });
+  };
+
+  const removeFile = (name: string) => setFiles((prev) => prev.filter((f) => f.name !== name));
 
   const submit = async () => {
     if (!title.trim() || !description.trim()) return;
@@ -251,6 +275,16 @@ function useIssueForm(onDone: (id?: string) => void) {
         severity,
         related_config_key: relatedConfigKey.trim(),
       });
+      // 附件得等 issue 建立後才有 id 可掛；單檔失敗不讓整筆回報失敗
+      const failed: string[] = [];
+      for (const file of files) {
+        try {
+          await uploadIssueAttachment(issue.id, file);
+        } catch {
+          failed.push(file.name);
+        }
+      }
+      if (failed.length) setUploadWarning(`回報已建立，但這些附件上傳失敗：${failed.join('、')}`);
       setSubmittedId(issue.id);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : (e as Error).message);
@@ -264,8 +298,10 @@ function useIssueForm(onDone: (id?: string) => void) {
     setSeverity('medium');
     setDescription('');
     setRelatedConfigKey('');
+    setFiles([]);
     setSubmittedId(null);
     setError(null);
+    setUploadWarning(null);
   };
 
   return {
@@ -277,6 +313,10 @@ function useIssueForm(onDone: (id?: string) => void) {
     setDescription,
     relatedConfigKey,
     setRelatedConfigKey,
+    files,
+    addFiles,
+    removeFile,
+    uploadWarning,
     submitting,
     submittedId,
     error,
@@ -284,6 +324,133 @@ function useIssueForm(onDone: (id?: string) => void) {
     reset,
     finish: () => onDone(submittedId ?? undefined),
   };
+}
+
+/** 伺服器 MAX_CONTENT_LENGTH 為 10MB；此處與後端一致，不宣稱做不到的上限。 */
+const MAX_ATTACHMENT_MB = 10;
+
+/** 附件卡：拖放或點選，送出回報後才真正上傳。 */
+function AttachmentCard({
+  files,
+  onAdd,
+  onRemove,
+  warning,
+}: {
+  files: File[];
+  onAdd: (f: FileList | File[]) => void;
+  onRemove: (name: string) => void;
+  warning: string | null;
+}) {
+  const [dragging, setDragging] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <div
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragging(false);
+        if (e.dataTransfer.files?.length) onAdd(e.dataTransfer.files);
+      }}
+    >
+      <input
+        ref={inputRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          if (e.target.files) onAdd(e.target.files);
+          e.target.value = '';
+        }}
+      />
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        className="w-full text-center cursor-pointer font-sans transition-all duration-150"
+        style={{
+          border: `1.5px dashed ${dragging ? T.accent : T.border}`,
+          borderRadius: 10,
+          padding: '28px 20px',
+          background: dragging ? T.accentBg : '#fafafa',
+        }}
+      >
+        <svg
+          width="28"
+          height="28"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={T.textMuted}
+          strokeWidth="1.5"
+          style={{ margin: '0 auto 10px', display: 'block' }}
+        >
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="17 8 12 3 7 8" />
+          <line x1="12" y1="3" x2="12" y2="15" />
+        </svg>
+        <div className="text-[13px] font-semibold mb-1" style={{ color: T.textSec }}>
+          拖放檔案或點擊上傳
+        </div>
+        <div className="text-[11px]" style={{ color: T.textMuted }}>
+          支援 PNG、JPG、PDF、LOG 等格式，單檔最大 {MAX_ATTACHMENT_MB}MB
+        </div>
+      </button>
+
+      {warning && (
+        <div
+          className="text-xs mt-2"
+          style={{
+            color: T.amber,
+            background: T.amberBg,
+            border: `1px solid ${T.amberBorder}`,
+            borderRadius: 6,
+            padding: '6px 10px',
+          }}
+        >
+          {warning}
+        </div>
+      )}
+
+      {files.length > 0 && (
+        <div className="mt-3">
+          {files.map((f) => (
+            <div
+              key={f.name}
+              className="flex items-center gap-2 mb-1.5"
+              style={{
+                background: T.surface,
+                border: `1px solid ${T.border}`,
+                borderRadius: 8,
+                padding: '7px 10px',
+              }}
+            >
+              <span className="text-[13px] text-text flex-1 min-w-0 truncate">{f.name}</span>
+              <span className="text-[11px] flex-shrink-0" style={{ color: T.textMuted }}>
+                {f.size < 1024 * 1024
+                  ? `${Math.round(f.size / 1024)} KB`
+                  : `${(f.size / 1024 / 1024).toFixed(1)} MB`}
+              </span>
+              <button
+                type="button"
+                onClick={() => onRemove(f.name)}
+                title="移除"
+                className="flex-shrink-0 border-0 bg-transparent cursor-pointer text-sm leading-none"
+                style={{ color: T.textMuted }}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          <div className="text-[11px] mt-1" style={{ color: T.textMuted }}>
+            共 {files.length} 個檔案，將於送出回報後上傳
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function IssueCreateDesktop({ onNav, onDone, onCancel, onLogout, isAdmin, onAdminClick }: Props) {
@@ -480,26 +647,15 @@ function IssueCreateDesktop({ onNav, onDone, onCancel, onLogout, isAdmin, onAdmi
             <CardHeader
               icon={<PaperclipIcon width={14} height={14} />}
               title="附件"
-              hint="此版本暫不支援附件上傳"
+              hint="選填 — 截圖、日誌檔案等"
             />
             <div className="px-5 py-4">
-              <div
-                className="text-center transition-all duration-150 opacity-60"
-                style={{
-                  border: `1.5px dashed ${T.border}`,
-                  borderRadius: 10,
-                  padding: '28px 20px',
-                  background: '#fafafa',
-                }}
-              >
-                <UploadIcon width={28} height={28} className="mx-auto mb-2.5 block text-text-muted" />
-                <div className="text-[13px] font-semibold text-text-sec mb-1">
-                  附件上傳即將推出
-                </div>
-                <div className="text-[11px] text-text-muted">
-                  目前可在送出後從故障排除文章補上相關檔案
-                </div>
-              </div>
+              <AttachmentCard
+                files={f.files}
+                onAdd={f.addFiles}
+                onRemove={f.removeFile}
+                warning={f.uploadWarning}
+              />
             </div>
           </div>
 

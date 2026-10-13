@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { T } from '../tokens';
 import { useIsMobile } from '../hooks/useMediaQuery';
-import { auth, login as apiLogin, ApiError } from '../api';
+import { auth, login as apiLogin, registerAccount, ApiError, type Role } from '../api';
 
 interface Props {
-  onLogin: (asAdmin: boolean) => void;
+  onLogin: (role: Role) => void;
 }
 
 const ContourBg = ({
@@ -67,7 +67,7 @@ const MountainSilhouette = () => (
   </svg>
 );
 
-function useLoginForm(onLogin: (asAdmin: boolean) => void) {
+function useLoginForm(onLogin: (role: Role) => void) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -82,8 +82,8 @@ function useLoginForm(onLogin: (asAdmin: boolean) => void) {
     setError(null);
     try {
       const res = await apiLogin(username.trim(), password);
-      auth.set(res.token, res.username);
-      onLogin(res.username === 'admin');
+      auth.set(res.token, res.username, res.role);
+      onLogin(res.role);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : '登入失敗，請確認伺服器是否啟動');
     } finally {
@@ -103,10 +103,48 @@ const registerFields = [
   { label: '申請原因', ph: '需要查閱 Ridge 軟體設定指引', span: 2, mono: false, area: true, name: 'reason' },
 ] as const;
 
+type RegisterFieldName = (typeof registerFields)[number]['name'];
+
+/** 申請帳號：送出後由管理員在後台審核（POST /api/auth/register）。 */
+function useRegisterForm(onDone: () => void) {
+  const [values, setValues] = useState<Record<RegisterFieldName, string>>({
+    name: '',
+    username: '',
+    email: '',
+    dept: '',
+    title: '',
+    reason: '',
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const set = (k: RegisterFieldName, v: string) => setValues((p) => ({ ...p, [k]: v }));
+
+  const submit = async () => {
+    if (!values.name.trim() || !values.username.trim()) {
+      setError('請填寫姓名與使用者名稱');
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await registerAccount(values);
+      onDone();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : '送出失敗，請稍後再試');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return { values, set, submitting, error, submit };
+}
+
 function LoginDesktop({ onLogin }: Props) {
   const [tab, setTab] = useState<'login' | 'register'>('login');
   const [step, setStep] = useState<1 | 2>(1);
   const f = useLoginForm(onLogin);
+  const reg = useRegisterForm(() => setStep(2));
 
   return (
     <div
@@ -315,12 +353,16 @@ function LoginDesktop({ onLogin }: Props) {
                     </label>
                     {'area' in field && field.area ? (
                       <textarea
+                        value={reg.values[field.name]}
+                        onChange={(e) => reg.set(field.name, e.target.value)}
                         className="w-full px-3.5 py-2.5 rounded-[8px] text-[13px] outline-none resize-none h-[72px]"
                         style={{ border: `1.5px solid ${T.border}`, background: '#fafafa' }}
                         placeholder={field.ph}
                       />
                     ) : (
                       <input
+                        value={reg.values[field.name]}
+                        onChange={(e) => reg.set(field.name, e.target.value)}
                         className={`w-full px-3.5 py-2.5 rounded-[8px] text-[13px] outline-none ${field.mono ? 'font-mono' : ''
                           }`}
                         style={{ border: `1.5px solid ${T.border}`, background: '#fafafa' }}
@@ -330,6 +372,14 @@ function LoginDesktop({ onLogin }: Props) {
                   </div>
                 ))}
               </div>
+              {reg.error && (
+                <div
+                  className="rounded-[8px] px-3 py-2 mb-2 text-xs"
+                  style={{ background: T.redBg, border: `1px solid ${T.redBorder}`, color: T.red }}
+                >
+                  {reg.error}
+                </div>
+              )}
               <div className="flex gap-2.5 mt-1">
                 <button
                   onClick={() => setTab('login')}
@@ -339,10 +389,11 @@ function LoginDesktop({ onLogin }: Props) {
                   取消
                 </button>
                 <button
-                  onClick={() => setStep(2)}
-                  className="flex-1 py-3 bg-primary text-white border-0 rounded-[10px] text-sm font-bold cursor-pointer"
+                  onClick={reg.submit}
+                  disabled={reg.submitting}
+                  className="flex-1 py-3 bg-primary text-white border-0 rounded-[10px] text-sm font-bold cursor-pointer disabled:opacity-60"
                 >
-                  送出申請
+                  {reg.submitting ? '送出中…' : '送出申請'}
                 </button>
               </div>
             </>
@@ -381,6 +432,7 @@ function LoginMobile({ onLogin }: Props) {
   const [tab, setTab] = useState<'login' | 'register'>('login');
   const [step, setStep] = useState<1 | 2>(1);
   const f = useLoginForm(onLogin);
+  const reg = useRegisterForm(() => setStep(2));
 
   return (
     <div
@@ -505,19 +557,23 @@ function LoginMobile({ onLogin }: Props) {
                 >
                   📋 申請後由管理員審核，審核通過後將寄送通知信件
                 </div>
-                {[
-                  { label: '姓名', ph: '王大明' },
-                  { label: '使用者名稱', ph: 'wang.daming', mono: true },
-                  { label: '電子信箱', ph: 'user@hospital.com' },
-                  { label: '所屬單位', ph: '放射科' },
-                  { label: '職稱', ph: '放射科醫師' },
-                ].map((field) => (
+                {(
+                  [
+                    { label: '姓名', ph: '王大明', name: 'name' },
+                    { label: '使用者名稱', ph: 'wang.daming', mono: true, name: 'username' },
+                    { label: '電子信箱', ph: 'user@hospital.com', name: 'email' },
+                    { label: '所屬單位', ph: '放射科', name: 'dept' },
+                    { label: '職稱', ph: '放射科醫師', name: 'title' },
+                  ] as const
+                ).map((field) => (
                   <div key={field.label} className="mb-3">
                     <label className="block text-xs font-semibold text-text-sec mb-1">
                       {field.label}
                     </label>
                     <input
-                      className={`w-full px-3.5 py-2.5 rounded-lg text-[15px] outline-none ${field.mono ? 'font-mono' : ''
+                      value={reg.values[field.name]}
+                      onChange={(e) => reg.set(field.name, e.target.value)}
+                      className={`w-full px-3.5 py-2.5 rounded-lg text-[15px] outline-none ${'mono' in field && field.mono ? 'font-mono' : ''
                         }`}
                       style={{ border: `1.5px solid ${T.border}`, background: '#fafafa' }}
                       placeholder={field.ph}
@@ -529,16 +585,27 @@ function LoginMobile({ onLogin }: Props) {
                     申請原因
                   </label>
                   <textarea
+                    value={reg.values.reason}
+                    onChange={(e) => reg.set('reason', e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-lg text-[15px] outline-none resize-none h-[72px]"
                     style={{ border: `1.5px solid ${T.border}`, background: '#fafafa' }}
                     placeholder="請簡述申請原因"
                   />
                 </div>
+                {reg.error && (
+                  <div
+                    className="rounded-[8px] px-3 py-2 mb-2 text-xs"
+                    style={{ background: T.redBg, border: `1px solid ${T.redBorder}`, color: T.red }}
+                  >
+                    {reg.error}
+                  </div>
+                )}
                 <button
-                  onClick={() => setStep(2)}
-                  className="w-full py-3.5 bg-primary text-white border-0 rounded-[10px] text-[15px] font-bold cursor-pointer"
+                  onClick={reg.submit}
+                  disabled={reg.submitting}
+                  className="w-full py-3.5 bg-primary text-white border-0 rounded-[10px] text-[15px] font-bold cursor-pointer disabled:opacity-60"
                 >
-                  送出申請
+                  {reg.submitting ? '送出中…' : '送出申請'}
                 </button>
               </>
             ) : (

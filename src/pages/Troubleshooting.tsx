@@ -7,6 +7,7 @@ import { MobileSearchOverlay } from '../components/MobileSearchOverlay';
 import { SidebarLabel, SidebarItem } from '../components/Sidebar';
 import { LoadingState, EmptyState, ErrorState } from '../components/States';
 import { SearchIcon } from '../components/icons';
+import { ArticleImages } from '../components/ArticleImages';
 import { T } from '../tokens';
 import {
   fetchArticles,
@@ -24,6 +25,7 @@ interface Props {
   onNav: (id: PageId) => void;
   onLogout?: () => void;
   isAdmin?: boolean;
+  isManager?: boolean;
   onAdminClick?: () => void;
 }
 
@@ -31,10 +33,12 @@ function ArticleDetailView({
   slug,
   onBack,
   dense = false,
+  canEdit = false,
 }: {
   slug: string;
   onBack: () => void;
   dense?: boolean;
+  canEdit?: boolean;
 }) {
   const { data: article, loading, error, reload } = useApi<ArticleFull>(
     (signal) => fetchArticle(slug, signal),
@@ -126,6 +130,13 @@ function ArticleDetailView({
             <div
               className="ts-article-body text-[13.5px] leading-[1.8] text-text"
               dangerouslySetInnerHTML={{ __html: safeHTML(article.html_body) }}
+            />
+            <ArticleImages
+              slug={slug}
+              attachments={article.attachments ?? []}
+              canEdit={canEdit}
+              onChanged={reload}
+              dense={dense}
             />
           </div>
         </div>
@@ -240,7 +251,7 @@ function TsCardMobile({ a, onClick }: { a: ArticleListItem; onClick: () => void 
   );
 }
 
-function TroubleshootingDesktop({ onNav, onLogout, isAdmin, onAdminClick }: Props) {
+function TroubleshootingDesktop({ onNav, onLogout, isAdmin, isManager, onAdminClick }: Props) {
   const [cat, setCat] = useState('全部');
   const [search, setSearch] = useState('');
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
@@ -307,7 +318,11 @@ function TroubleshootingDesktop({ onNav, onLogout, isAdmin, onAdminClick }: Prop
         </aside>
         <main className="flex-1 overflow-y-auto px-7 py-5">
           {selectedSlug ? (
-            <ArticleDetailView slug={selectedSlug} onBack={() => setSelectedSlug(null)} />
+            <ArticleDetailView
+              slug={selectedSlug}
+              onBack={() => setSelectedSlug(null)}
+              canEdit={isManager}
+            />
           ) : (
             <>
               <div className="flex items-center gap-3 mb-4">
@@ -351,7 +366,7 @@ function TroubleshootingDesktop({ onNav, onLogout, isAdmin, onAdminClick }: Prop
   );
 }
 
-function TroubleshootingMobile({ onNav, onLogout, isAdmin, onAdminClick }: Props) {
+function TroubleshootingMobile({ onNav, onLogout, isAdmin, isManager, onAdminClick }: Props) {
   const [cat, setCat] = useState('全部');
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -409,6 +424,7 @@ function TroubleshootingMobile({ onNav, onLogout, isAdmin, onAdminClick }: Props
             slug={selectedSlug}
             onBack={() => setSelectedSlug(null)}
             dense
+            canEdit={isManager}
           />
         </main>
       ) : (

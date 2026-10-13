@@ -8,8 +8,10 @@ interface Props {
 const pages: Array<{ id: PageId; icon: string; label: string }> = [
   { id: 'config', icon: '⚙️', label: '設定' },
   { id: 'issues', icon: '📋', label: '回報' },
+  { id: 'requirements', icon: '📝', label: '需求' },
   { id: 'troubleshooting', icon: '🔧', label: '排除' },
   { id: 'release-notes', icon: '📦', label: '更新' },
+  { id: 'assistant', icon: '💬', label: '客服' },
 ];
 
 export function MobileNav({ active, onNav }: Props) {
