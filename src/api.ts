@@ -56,6 +56,58 @@ export class ApiError extends Error {
   }
 }
 
+// ── 登入逾時 ──────────────────────────────────────────────────────────
+// token 存在 localStorage，關掉瀏覽器再打開仍會「看起來已登入」。token 一旦過期，
+// 後端每個 API 都回 401，畫面就卡在載入失敗。所以：
+//   1. 開頁、切回分頁、每分鐘檢查一次 token 的 exp，過期就登出（checkSessionExpiry）
+//   2. 任何帶 token 的請求收到 401，也視為登入失效（handleUnauthorized）
+// 兩者都會清掉登入資料並通知 App 回到登入頁。
+
+/** 這些端點的 401 是「帳密錯誤」，不是登入逾時。 */
+const CREDENTIAL_PATHS = new Set(['/api/auth/login', '/api/auth/change-password']);
+
+const expiredListeners = new Set<() => void>();
+
+/** App 訂閱登入失效事件；回傳取消訂閱的函式。 */
+export function onSessionExpired(fn: () => void): () => void {
+  expiredListeners.add(fn);
+  return () => {
+    expiredListeners.delete(fn);
+  };
+}
+
+function expireSession() {
+  // 同時有多個請求回 401 時只通知一次
+  if (!auth.getToken()) return;
+  auth.clear();
+  expiredListeners.forEach((fn) => fn());
+}
+
+/** 讀 JWT 的 exp（毫秒）。只用來提早發現過期，不驗簽 —— 真正的驗證在後端。無法解析回 0。 */
+function tokenExpiresAt(token: string): number {
+  try {
+    const b64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(atob(b64.padEnd(Math.ceil(b64.length / 4) * 4, '=')));
+    return typeof payload.exp === 'number' ? payload.exp * 1000 : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** token 已過期（或格式不對）就登出並通知 App；回傳是否因此登出。 */
+export function checkSessionExpiry(): boolean {
+  const token = auth.getToken();
+  if (token && tokenExpiresAt(token) <= Date.now()) {
+    expireSession();
+    return true;
+  }
+  return false;
+}
+
+function handleUnauthorized(status: number, path: string, sentToken: boolean) {
+  if (status === 401 && sentToken && !CREDENTIAL_PATHS.has(path)) expireSession();
+}
+
 async function request<T>(
   method: string,
   path: string,
@@ -81,6 +133,7 @@ async function request<T>(
   if (ct.includes('application/json')) payload = await res.json().catch(() => null);
 
   if (!res.ok) {
+    handleUnauthorized(res.status, path, !!token);
     const msg =
       (payload && typeof payload === 'object' && 'error' in payload
         ? (payload as { error?: string }).error
@@ -110,6 +163,7 @@ async function sendForm<T>(method: 'POST' | 'PUT', path: string, form: FormData)
   });
   const payload = await res.json().catch(() => null);
   if (!res.ok) {
+    handleUnauthorized(res.status, path, !!token);
     const msg = (payload as { error?: string } | null)?.error;
     throw new ApiError(res.status, msg || `上傳失敗（HTTP ${res.status}）`);
   }
@@ -275,19 +329,11 @@ export async function uploadIssueAttachment(
   issueId: string,
   file: File
 ): Promise<{ filename: string }> {
-  const fd = new FormData();
-  fd.append('file', file);
-  const token = auth.getToken();
-  const res = await fetch(`${API_BASE}/api/issues/${encodeURIComponent(issueId)}/attachments`, {
-    method: 'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    body: fd,
-  });
-  if (!res.ok) {
-    const msg = await res.json().then((d: { error?: string }) => d.error).catch(() => null);
-    throw new ApiError(res.status, msg || `上傳失敗（HTTP ${res.status}）`);
-  }
-  return (await res.json()) as { filename: string };
+  return sendForm<{ filename: string }>(
+    'POST',
+    `/api/issues/${encodeURIComponent(issueId)}/attachments`,
+    fileForm(file)
+  );
 }
 
 export const deleteIssueAttachment = (issueId: string, filename: string) =>
@@ -479,25 +525,11 @@ export async function uploadArticleAttachment(
   slug: string,
   file: File
 ): Promise<{ filename: string }> {
-  const fd = new FormData();
-  fd.append('file', file);
-  const token = auth.getToken();
-  const res = await fetch(
-    `${API_BASE}/api/troubleshooting/articles/${encodeURIComponent(slug)}/attachments`,
-    {
-      method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: fd, // 不可自行設 Content-Type，瀏覽器需自動帶 multipart boundary
-    }
+  return sendForm<{ filename: string }>(
+    'POST',
+    `/api/troubleshooting/articles/${encodeURIComponent(slug)}/attachments`,
+    fileForm(file)
   );
-  if (!res.ok) {
-    const msg = await res
-      .json()
-      .then((d: { error?: string }) => d.error)
-      .catch(() => null);
-    throw new ApiError(res.status, msg || `上傳失敗（HTTP ${res.status}）`);
-  }
-  return (await res.json()) as { filename: string };
 }
 
 export const deleteArticleAttachment = (slug: string, filename: string) =>

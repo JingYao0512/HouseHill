@@ -5,6 +5,21 @@ import { auth, login as apiLogin, registerAccount, ApiError, type Role } from '.
 
 interface Props {
   onLogin: (role: Role) => void;
+  /** 例如登入逾時後被導回來時的提示 */
+  notice?: string;
+}
+
+/** 提示訊息（非錯誤）：登入逾時等。輸入帳密送出後若出現錯誤，改顯示錯誤。 */
+function LoginNotice({ text, mb }: { text: string; mb: string }) {
+  return (
+    <div
+      role="status"
+      className={`rounded-[8px] px-3 py-2 ${mb} text-xs`}
+      style={{ background: T.amberBg, border: `1px solid ${T.amberBorder}`, color: '#92400e' }}
+    >
+      {text}
+    </div>
+  );
 }
 
 const ContourBg = ({
@@ -140,7 +155,7 @@ function useRegisterForm(onDone: () => void) {
   return { values, set, submitting, error, submit };
 }
 
-function LoginDesktop({ onLogin }: Props) {
+function LoginDesktop({ onLogin, notice }: Props) {
   const [tab, setTab] = useState<'login' | 'register'>('login');
   const [step, setStep] = useState<1 | 2>(1);
   const f = useLoginForm(onLogin);
@@ -292,6 +307,7 @@ function LoginDesktop({ onLogin }: Props) {
                   placeholder="••••••••"
                 />
               </div>
+              {notice && !f.error && <LoginNotice text={notice} mb="mb-3" />}
               {f.error && (
                 <div
                   className="rounded-[8px] px-3 py-2 mb-3 text-xs"
@@ -428,7 +444,7 @@ function LoginDesktop({ onLogin }: Props) {
   );
 }
 
-function LoginMobile({ onLogin }: Props) {
+function LoginMobile({ onLogin, notice }: Props) {
   const [tab, setTab] = useState<'login' | 'register'>('login');
   const [step, setStep] = useState<1 | 2>(1);
   const f = useLoginForm(onLogin);
@@ -528,6 +544,7 @@ function LoginMobile({ onLogin }: Props) {
                     placeholder="••••••••"
                   />
                 </div>
+                {notice && !f.error && <LoginNotice text={notice} mb="mb-2" />}
                 {f.error && (
                   <div
                     className="rounded-[8px] px-3 py-2 mb-2 text-xs"
