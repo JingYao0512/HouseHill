@@ -31,6 +31,9 @@ type Param = ConfigItem & { sheet: string; uid: string };
 const isBlank = (v: string) => !v || v.trim() === '' || v.trim() === '-';
 const show = (v: string) => (isBlank(v) ? '—' : v.trim());
 
+/** 長字串（路徑、逗號串接的清單）沒有空白可斷行時，允許在任意位置換行，避免撐破版面。 */
+const WRAP = { overflowWrap: 'anywhere' } as const;
+
 function flatten(data: WorkbookData | null): Param[] {
   if (!data) return [];
   return Object.entries(data).flatMap(([sheet, items]) =>
@@ -180,6 +183,23 @@ function CfgRow({
     setTimeout(() => setCopied(false), 1400);
   };
 
+  // 預設值徽章：長值（最長約 50 字）會換行，不再撐開整列。
+  const defaultBadge = (
+    <span
+      className="inline-block max-w-full text-left font-medium text-text bg-white"
+      style={{
+        fontFamily: MONO,
+        fontSize: mobile ? 12 : 13,
+        border: `1px solid ${T.border}`,
+        padding: mobile ? '2px 8px' : '3px 10px',
+        borderRadius: 6,
+        ...WRAP,
+      }}
+    >
+      {show(p.default)}
+    </span>
+  );
+
   return (
     <div style={{ borderBottom: last ? 'none' : `1px solid ${T.borderLight}` }}>
       <button
@@ -193,10 +213,13 @@ function CfgRow({
       >
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-[3px] flex-wrap">
-            <span className="text-sm font-semibold text-text">{show(p.description)}</span>
+            {/* 保留 Excel 儲存格內的換行 */}
+            <span className="text-sm font-semibold text-text whitespace-pre-line min-w-0" style={WRAP}>
+              {show(p.description)}
+            </span>
             {uiSettable && (
               <span
-                className="text-[10px] font-bold"
+                className="text-[10px] font-bold whitespace-nowrap"
                 style={{
                   color: T.green,
                   background: T.greenBg,
@@ -212,23 +235,25 @@ function CfgRow({
           <div className="text-xs break-all" style={{ fontFamily: MONO, color: T.accentStrong }}>
             {p.key}
           </div>
+          {/* 手機：預設值放在 key 下方，不和說明搶寬度 */}
+          {mobile && (
+            <div className="flex items-start gap-1.5 mt-1.5">
+              <span className="text-[10px] flex-shrink-0 pt-[3px]" style={{ color: T.textMuted }}>
+                預設值
+              </span>
+              {defaultBadge}
+            </div>
+          )}
         </div>
-        <div className="text-right flex-shrink-0">
-          <div className="text-[10px] mb-1" style={{ color: T.textMuted }}>
-            預設值
+        {/* 桌機：預設值在右欄，最多佔 40% 寬，過長就換行 */}
+        {!mobile && (
+          <div className="text-right min-w-0 flex-shrink" style={{ maxWidth: '40%' }}>
+            <div className="text-[10px] mb-1" style={{ color: T.textMuted }}>
+              預設值
+            </div>
+            {defaultBadge}
           </div>
-          <span
-            className="text-[13px] font-medium text-text bg-white"
-            style={{
-              fontFamily: MONO,
-              border: `1px solid ${T.border}`,
-              padding: '3px 10px',
-              borderRadius: 6,
-            }}
-          >
-            {show(p.default)}
-          </span>
-        </div>
+        )}
         <svg
           width="16"
           height="16"
@@ -246,7 +271,7 @@ function CfgRow({
       {open && (
         <div style={{ padding: mobile ? '2px 14px 14px' : '2px 18px 16px', background: T.bg }}>
           <div
-            className="flex items-center gap-2.5"
+            className="flex items-start gap-2.5"
             style={{
               background: '#0f172a',
               borderRadius: 8,
@@ -256,7 +281,8 @@ function CfgRow({
               color: '#e2e8f0',
             }}
           >
-            <span className="flex-1 min-w-0 overflow-x-auto whitespace-nowrap">
+            {/* 長值換行顯示，不用橫向捲動（手機上捲動條容易看不到後半段） */}
+            <span className="flex-1 min-w-0 pt-[3px] leading-[1.6]" style={WRAP}>
               <span style={{ color: '#93c5fd' }}>{p.key}</span>
               {' = '}
               <span style={{ color: '#fde68a' }}>{show(p.default)}</span>
@@ -277,18 +303,26 @@ function CfgRow({
 
           {/* 可填值：來源 Excel 有這欄（118/219 筆），舊版畫面從未顯示 */}
           {!isBlank(p.options) && (
-            <div className="mt-2.5 text-xs" style={{ color: T.textSec }}>
-              <span style={{ color: T.textMuted }}>可填值　</span>
-              <span style={{ fontFamily: MONO, color: T.text }}>{p.options.trim()}</span>
+            <div className="mt-2.5 text-xs flex gap-2" style={{ color: T.textSec }}>
+              <span className="flex-shrink-0" style={{ color: T.textMuted }}>
+                可填值
+              </span>
+              {/* 有些可填值在 Excel 裡是一行一個選項，保留換行 */}
+              <span
+                className="min-w-0 whitespace-pre-line leading-[1.6]"
+                style={{ fontFamily: MONO, color: T.text, ...WRAP }}
+              >
+                {p.options.trim()}
+              </span>
             </div>
           )}
 
           <div
             className="flex flex-wrap mt-2.5 text-xs"
-            style={{ gap: mobile ? 12 : 20, color: T.textSec }}
+            style={{ gap: mobile ? 12 : 20, color: T.textSec, ...WRAP }}
           >
             <span>
-              類型
+              類型{'　'}
               <span style={{ fontFamily: MONO, color: T.purple, fontWeight: 600 }}>
                 {show(p.attribute)}
               </span>
@@ -310,8 +344,9 @@ function CfgRow({
                   <button
                     key={a.slug}
                     onClick={onOpenArticle}
-                    className="text-xs cursor-pointer font-sans"
+                    className="text-xs cursor-pointer font-sans max-w-full text-left"
                     style={{
+                      ...WRAP,
                       color: T.accentStrong,
                       background: T.accentBg,
                       border: `1px solid ${T.accentBorder}`,
@@ -455,8 +490,10 @@ function CfgBody({
         !error &&
         groups.map((g) => (
           <section key={g.id} style={{ marginBottom: mobile ? 16 : 20 }}>
-            <div className="flex items-baseline gap-2 mb-2 px-0.5">
-              <span className="text-[13px] font-bold text-text">{g.section || g.sheet}</span>
+            <div className="flex flex-wrap items-baseline gap-x-2 mb-2 px-0.5">
+              <span className="text-[13px] font-bold text-text min-w-0" style={WRAP}>
+                {g.section || g.sheet}
+              </span>
               {cat === '全部' && g.section && (
                 <span className="text-[11px]" style={{ color: T.textMuted }}>
                   {g.sheet}
