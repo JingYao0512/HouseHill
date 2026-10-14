@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, Fragment } from 'react';
 import { TopBar } from '../components/TopBar';
 import { NavHeader } from '../components/NavHeader';
 import { MobileNav } from '../components/MobileNav';
@@ -33,6 +33,30 @@ const show = (v: string) => (isBlank(v) ? '—' : v.trim());
 
 /** 長字串（路徑、逗號串接的清單）沒有空白可斷行時，允許在任意位置換行，避免撐破版面。 */
 const WRAP = { overflowWrap: 'anywhere' } as const;
+
+/** 預設值超過這個長度時，不放在右欄，改在 key 下方用整列寬度顯示。 */
+const LONG_DEFAULT = 30;
+
+/**
+ * 在分隔符號（, ; / \）後面加上換行點，讓清單在項目之間換行，
+ * 而不是把 `14INX17IN|1` 這類項目從中間切斷。<wbr> 不含字元，複製文字時不會多出東西。
+ */
+function Breakable({ text }: { text: string }) {
+  return (
+    <>
+      {text.split(/([,;/\\])/).map((s, i) =>
+        i % 2 === 1 ? (
+          <Fragment key={i}>
+            {s}
+            <wbr />
+          </Fragment>
+        ) : (
+          s
+        )
+      )}
+    </>
+  );
+}
 
 function flatten(data: WorkbookData | null): Param[] {
   if (!data) return [];
@@ -183,20 +207,24 @@ function CfgRow({
     setTimeout(() => setCopied(false), 1400);
   };
 
-  // 預設值徽章：長值（最長約 50 字）會換行，不再撐開整列。
+  // 預設值徽章：長值在分隔符號處換行，不再撐開整列。
+  const defaultText = show(p.default);
+  // 手機一律、桌機在值很長時（如 FilmSizeOption 的尺寸清單），預設值改放在 key 下方用整列寬度顯示。
+  const stackDefault = mobile || defaultText.length > LONG_DEFAULT;
   const defaultBadge = (
     <span
       className="inline-block max-w-full text-left font-medium text-text bg-white"
       style={{
         fontFamily: MONO,
         fontSize: mobile ? 12 : 13,
+        lineHeight: 1.6,
         border: `1px solid ${T.border}`,
         padding: mobile ? '2px 8px' : '3px 10px',
         borderRadius: 6,
         ...WRAP,
       }}
     >
-      {show(p.default)}
+      <Breakable text={defaultText} />
     </span>
   );
 
@@ -235,18 +263,18 @@ function CfgRow({
           <div className="text-xs break-all" style={{ fontFamily: MONO, color: T.accentStrong }}>
             {p.key}
           </div>
-          {/* 手機：預設值放在 key 下方，不和說明搶寬度 */}
-          {mobile && (
+          {/* 手機或長值：預設值放在 key 下方，不和說明搶寬度 */}
+          {stackDefault && (
             <div className="flex items-start gap-1.5 mt-1.5">
-              <span className="text-[10px] flex-shrink-0 pt-[3px]" style={{ color: T.textMuted }}>
+              <span className="text-[10px] flex-shrink-0 pt-[4px]" style={{ color: T.textMuted }}>
                 預設值
               </span>
               {defaultBadge}
             </div>
           )}
         </div>
-        {/* 桌機：預設值在右欄，最多佔 40% 寬，過長就換行 */}
-        {!mobile && (
+        {/* 桌機短值：預設值在右欄，最多佔 40% 寬 */}
+        {!stackDefault && (
           <div className="text-right min-w-0 flex-shrink" style={{ maxWidth: '40%' }}>
             <div className="text-[10px] mb-1" style={{ color: T.textMuted }}>
               預設值
@@ -285,7 +313,9 @@ function CfgRow({
             <span className="flex-1 min-w-0 pt-[3px] leading-[1.6]" style={WRAP}>
               <span style={{ color: '#93c5fd' }}>{p.key}</span>
               {' = '}
-              <span style={{ color: '#fde68a' }}>{show(p.default)}</span>
+              <span style={{ color: '#fde68a' }}>
+                <Breakable text={defaultText} />
+              </span>
             </span>
             <button
               onClick={copy}
@@ -312,7 +342,7 @@ function CfgRow({
                 className="min-w-0 whitespace-pre-line leading-[1.6]"
                 style={{ fontFamily: MONO, color: T.text, ...WRAP }}
               >
-                {p.options.trim()}
+                <Breakable text={p.options.trim()} />
               </span>
             </div>
           )}
