@@ -252,6 +252,14 @@ export const previewConfigUpload = (file: File) =>
 export const replaceConfig = (file: File) =>
   sendForm<ConfigInfo>('PUT', '/api/config', fileForm(file));
 
+// 設定指引的分頁排序：所有登入者可讀；只有 admin 可改。
+// 回傳的永遠是目前活頁簿的完整分頁清單（已排序者在前，新分頁接在後）。
+export const fetchConfigSheetOrder = (signal?: AbortSignal) =>
+  api.get<{ sheet_order: string[] }>('/api/config/sheet-order', signal);
+
+export const saveConfigSheetOrder = (sheet_order: string[]) =>
+  api.put<{ sheet_order: string[] }>('/api/config/sheet-order', { sheet_order });
+
 export type Severity = 'critical' | 'high' | 'medium' | 'low';
 export type IssueStatus = 'open' | 'in-progress' | 'resolved';
 

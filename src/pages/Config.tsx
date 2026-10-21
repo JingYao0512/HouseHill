@@ -6,6 +6,7 @@ import { LoadingState, ErrorState } from '../components/States';
 import { T } from '../tokens';
 import {
   fetchConfig,
+  fetchConfigSheetOrder,
   fetchArticles,
   type ConfigItem,
   type WorkbookData,
@@ -58,10 +59,21 @@ function Breakable({ text }: { text: string }) {
   );
 }
 
-function flatten(data: WorkbookData | null): Param[] {
+/**
+ * 分頁顯示順序：管理員在後台設定的順序（GET /api/config/sheet-order）。
+ * 讀不到排序時退回 JSON 的鍵順序；排序裡沒有的分頁接在最後，確保不會漏掉。
+ */
+function orderSheets(data: WorkbookData | null, order: string[] | null): string[] {
   if (!data) return [];
-  return Object.entries(data).flatMap(([sheet, items]) =>
-    items
+  const keys = Object.keys(data);
+  const ordered = (order ?? []).filter((s) => s in data);
+  return [...ordered, ...keys.filter((s) => !ordered.includes(s))];
+}
+
+function flatten(data: WorkbookData | null, sheets: string[]): Param[] {
+  if (!data) return [];
+  return sheets.flatMap((sheet) =>
+    (data[sheet] ?? [])
       .filter((i) => i.key)
       .map((i) => ({ ...i, sheet, uid: `${sheet}|${i.section}|${i.key}` }))
   );
@@ -409,13 +421,25 @@ function CfgBody({
   setQuery: (q: string) => void;
   onNav: (id: PageId) => void;
 }) {
-  const { data, loading, error, reload } = useApi<WorkbookData>((signal) => fetchConfig(signal), []);
+  // 設定內容與分頁排序並行讀取；排序失敗不影響內容顯示（退回預設順序）。
+  const { data: loaded, loading, error, reload } = useApi(
+    (signal) =>
+      Promise.all([
+        fetchConfig(signal),
+        fetchConfigSheetOrder(signal)
+          .then((r) => r.sheet_order)
+          .catch(() => null),
+      ]),
+    []
+  );
+  const data = loaded?.[0] ?? null;
+  const sheetOrder = loaded?.[1] ?? null;
   const articles = useApi<ArticleListItem[]>((signal) => fetchArticles({}, signal), []);
   const [cat, setCat] = useState('全部');
   const [open, setOpen] = useState<string | null>(null);
 
-  const all = useMemo(() => flatten(data), [data]);
-  const sheets = useMemo(() => (data ? Object.keys(data) : []), [data]);
+  const sheets = useMemo(() => orderSheets(data, sheetOrder), [data, sheetOrder]);
+  const all = useMemo(() => flatten(data, sheets), [data, sheets]);
   const matched = useMemo(() => all.filter((p) => matches(p, query)), [all, query]);
 
   const counts = useMemo(() => {

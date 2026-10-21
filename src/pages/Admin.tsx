@@ -20,6 +20,7 @@ import { useApi } from '../hooks/useApi';
 import { useIsMobile } from '../hooks/useMediaQuery';
 import ConfigUploadPanel from '../components/ConfigUploadPanel';
 import RequirementImportPanel from '../components/RequirementImportPanel';
+import ConfigSheetOrderPanel from '../components/ConfigSheetOrderPanel';
 
 const ROLE_OPTIONS: Role[] = ['user', 'manager', 'admin'];
 
@@ -30,12 +31,13 @@ interface Props {
   onOpenRequirements: () => void;
 }
 
-type SubPage = 'users' | 'requests' | 'config' | 'req-import';
+type SubPage = 'users' | 'requests' | 'config' | 'config-order' | 'req-import';
 
 const SUB_PAGES: { id: SubPage; label: string; short: string }[] = [
   { id: 'users', label: '使用者管理', short: '使用者' },
   { id: 'requests', label: '帳號申請審核', short: '申請審核' },
   { id: 'config', label: '設定檔上傳', short: '設定檔' },
+  { id: 'config-order', label: '設定指引排序', short: '排序' },
   { id: 'req-import', label: '需求匯入', short: '需求匯入' },
 ];
 
@@ -643,6 +645,7 @@ function AdminDesktop({ onLogout, onBack, onOpenRequirements }: Props) {
         )}
         {subPage === 'requests' && <RequestsPanel desktop />}
         {subPage === 'config' && <ConfigUploadPanel />}
+        {subPage === 'config-order' && <ConfigSheetOrderPanel />}
         {subPage === 'req-import' && (
           <RequirementImportPanel onOpenRequirements={onOpenRequirements} />
         )}
@@ -719,6 +722,7 @@ function AdminMobile({ onLogout, onBack, onOpenRequirements }: Props) {
         )}
         {subPage === 'requests' && <RequestsPanel desktop={false} />}
         {subPage === 'config' && <ConfigUploadPanel />}
+        {subPage === 'config-order' && <ConfigSheetOrderPanel />}
         {subPage === 'req-import' && (
           <RequirementImportPanel onOpenRequirements={onOpenRequirements} />
         )}
